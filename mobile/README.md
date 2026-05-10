@@ -36,7 +36,7 @@ Depois rode `npx cap sync` pra copiar o `www/` pros projetos nativos.
 
 **Pré-requisitos:**
 - [Android Studio](https://developer.android.com/studio) (Hedgehog ou superior)
-- JDK 17 (vem com Android Studio)
+- JDK 21 (Capacitor 8 exige; Android Studio recente já vem com ele)
 
 **Passos:**
 

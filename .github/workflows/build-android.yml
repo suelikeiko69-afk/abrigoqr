@@ -8,6 +8,9 @@ on:
       - '.github/workflows/build-android.yml'
   workflow_dispatch: {}
 
+permissions:
+  contents: write   # necessario para publicar release
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -50,3 +53,17 @@ jobs:
           name: abrigoqr-debug-apk
           path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
+
+      # Publica como GitHub Release "latest" (URL publica fixa pra /install)
+      - name: Publish APK as latest release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "AbrigoQR - ultimo build (debug)"
+          body: |
+            APK debug gerado automaticamente do commit ${{ github.sha }}.
+
+            Baixe e instale: [app-debug.apk](https://github.com/${{ github.repository }}/releases/download/latest/app-debug.apk)
+          files: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          make_latest: "true"

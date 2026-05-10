@@ -8,6 +8,9 @@ Arquitetura híbrida:
   • Frontend é o app mobile Capacitor (Android/iOS) — fala via REST.
 
 Endpoints:
+  GET  /                          — UI legada (Jinja, modo desktop) ou redirect
+  GET  /install                   — pagina amigavel com QR pra instalar o APK
+  GET  /install/apk               — redirect pro APK do GitHub Releases
   GET  /api/config                — config pública (entidade, versão)
   GET  /api/status                — health check
   POST /lancar-nota               — registra nota (status=pendente)
@@ -31,9 +34,9 @@ import logging, os, re, json, asyncio
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, validator
 from sqlalchemy import (
@@ -63,6 +66,8 @@ ANTHROPIC_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
 DATABASE_URL   = os.getenv("DATABASE_URL", "sqlite:///./abrigoqr.db")
 RPA_TOKEN      = os.getenv("RPA_TOKEN", "")
 CORS_ORIGINS   = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
+INSTALL_REPO   = os.getenv("INSTALL_REPO", "suelikeiko69-afk/abrigoqr")
+INSTALL_TAG    = os.getenv("INSTALL_TAG",  "latest")
 
 # Render entrega "postgres://" mas SQLAlchemy 2.x exige "postgresql://"
 if DATABASE_URL.startswith("postgres://"):
@@ -232,6 +237,153 @@ async def api_config():
         "versao":         "4.0.0",
         "rpa_disponivel": RPA_DISPONIVEL,
     }
+
+
+# ── Pagina de instalacao do APK (com QR) ─────────────────
+@app.get("/install/apk")
+async def install_apk():
+    """Redireciona para o APK mais recente publicado como GitHub Release."""
+    return RedirectResponse(
+        f"https://github.com/{INSTALL_REPO}/releases/download/{INSTALL_TAG}/app-debug.apk",
+        status_code=302,
+    )
+
+
+@app.get("/install", response_class=HTMLResponse)
+async def install_page(request: Request):
+    """Pagina amigavel pra colaborador instalar o app no celular."""
+    install_url = str(request.url).split("?")[0].rstrip("/")
+    apk_url     = f"{install_url}/apk"
+    html = _INSTALL_HTML
+    html = html.replace("__ENTIDADE__",   _esc(ENTIDADE_NOME))
+    html = html.replace("__APK_URL__",    apk_url)
+    html = html.replace("__INSTALL_URL__", install_url)
+    html = html.replace("__VERSAO__",     "4.0.0")
+    return HTMLResponse(html)
+
+
+def _esc(s: str) -> str:
+    return (s.replace("&", "&amp;").replace("<", "&lt;")
+             .replace(">", "&gt;").replace('"', "&quot;"))
+
+
+_INSTALL_HTML = r"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Instalar AbrigoQR</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<style>
+  :root { --v:#0A5C45; --vm:#0F7A5C; --vl:#D6F0E8; --vxl:#EDFAF5; --vd:#063D2E;
+          --bg:#F5F1E8; --txt:#2A2A2A; --gray:#6B6B6B; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; }
+  body { font-family:-apple-system,"Segoe UI",system-ui,sans-serif; background:var(--bg);
+         color:var(--txt); line-height:1.5; min-height:100vh; }
+  .wrap { max-width:560px; margin:0 auto; padding:24px 16px 80px; }
+  header { text-align:center; padding:24px 16px 16px; }
+  .logo { font-size:56px; line-height:1; }
+  h1 { font-size:30px; margin:8px 0 4px; color:var(--vd); font-weight:700; letter-spacing:-.01em; }
+  .ent { color:var(--vm); font-weight:500; font-size:15px; }
+  .card { background:white; border-radius:18px; padding:24px; margin-bottom:14px;
+          box-shadow:0 4px 20px rgba(10,92,69,.08); }
+  .download { display:block; text-align:center; padding:18px 20px; border-radius:14px;
+              text-decoration:none; font-size:18px; font-weight:600;
+              background:linear-gradient(135deg,var(--v),var(--vm)); color:white;
+              margin:14px 0; box-shadow:0 4px 14px rgba(10,92,69,.25);
+              transition:transform .1s; }
+  .download:active { transform:scale(.98); }
+  .download.alt { background:#888; box-shadow:none; font-size:14px; padding:10px 14px; }
+  .qr-wrap { display:flex; justify-content:center; padding:16px 0 8px; }
+  .qr { padding:14px; background:white; border:3px solid var(--vl); border-radius:14px; }
+  .qr img { display:block; width:240px; height:240px; }
+  .info { font-size:13px; color:var(--gray); text-align:center; margin:6px 0 0; word-break:break-all; }
+  h2 { color:var(--vd); font-size:18px; margin:0 0 14px; }
+  .step { display:flex; gap:14px; margin:14px 0; align-items:flex-start; }
+  .step-num { flex-shrink:0; width:32px; height:32px; background:var(--v); color:white;
+              border-radius:50%; display:flex; align-items:center; justify-content:center;
+              font-weight:700; font-size:14px; }
+  .step-text { padding-top:5px; font-size:15px; }
+  .step-text strong { color:var(--vd); }
+  code { font-family:"SF Mono",Consolas,"DM Mono",monospace; background:#eee;
+         padding:2px 6px; border-radius:4px; font-size:13px; }
+  .badge { display:inline-block; background:var(--vl); color:var(--vd);
+           padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600;
+           margin-left:8px; }
+  .desktop-only { display:block; }
+  .mobile-only  { display:none;  }
+  @media (max-width:600px) {
+    .desktop-only { display:none;  }
+    .mobile-only  { display:block; }
+    h1 { font-size:26px; }
+    .qr img { width:200px; height:200px; }
+  }
+  footer { text-align:center; font-size:12px; color:var(--gray); margin-top:24px; }
+  footer a { color:var(--gray); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header>
+  <div class="logo">🌿</div>
+  <h1>AbrigoQR</h1>
+  <div class="ent">__ENTIDADE__</div>
+</header>
+
+<div class="card">
+  <div class="mobile-only">
+    <h2>Instalar no celular <span class="badge">Android</span></h2>
+    <a class="download" href="__APK_URL__">📥 Baixar AbrigoQR</a>
+    <p class="info">Após baixar, toque no arquivo para instalar.</p>
+  </div>
+
+  <div class="desktop-only">
+    <h2>Aponte a câmera do celular para o QR Code</h2>
+    <div class="qr-wrap">
+      <div class="qr" id="qr"></div>
+    </div>
+    <p class="info">Ou compartilhe este link:<br><strong>__INSTALL_URL__</strong></p>
+    <a class="download alt" href="__APK_URL__">Baixar APK direto (avançado)</a>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Como instalar — passo a passo</h2>
+  <div class="step"><div class="step-num">1</div><div class="step-text">Toque em <strong>Baixar AbrigoQR</strong> acima.</div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-text">Quando o download terminar, abra o arquivo <code>app-debug.apk</code> na notificação ou no app de Arquivos.</div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-text">O Android vai pedir <strong>"Permitir desta fonte"</strong> ou <strong>"Fontes desconhecidas"</strong> — autorize só pra este aplicativo (Chrome, Drive, etc).</div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-text">Toque em <strong>Instalar</strong> e aguarde.</div></div>
+  <div class="step"><div class="step-num">5</div><div class="step-text">Abra o AbrigoQR e <strong>conceda permissão de câmera</strong> quando pedir — ela é usada pra ler os QR codes dos cupons.</div></div>
+</div>
+
+<div class="card">
+  <h2>Dúvidas frequentes</h2>
+  <p style="margin:6px 0;font-size:14px"><strong>iPhone funciona?</strong> Ainda não — só Android por enquanto. O app pra iOS está em desenvolvimento.</p>
+  <p style="margin:6px 0;font-size:14px"><strong>É seguro?</strong> Sim, o aplicativo é gratuito, de código aberto e não coleta dados pessoais.</p>
+  <p style="margin:6px 0;font-size:14px"><strong>Tela mostra "Sem conexão"?</strong> O servidor pode estar dormindo (acorda em ~30s). Toque longo no nome da entidade pra reconfigurar a URL se precisar.</p>
+</div>
+
+<footer>
+  AbrigoQR v__VERSAO__ · <a href="/api/status">status do servidor</a>
+</footer>
+
+</div>
+
+<script>
+  // Gera QR apontando pra esta mesma pagina (pra desktop -> mobile)
+  try {
+    var qr = qrcode(0, 'M');
+    qr.addData("__INSTALL_URL__");
+    qr.make();
+    document.getElementById('qr').innerHTML = qr.createImgTag(6, 8);
+  } catch(e) { console.warn('QR fail:', e); }
+</script>
+</body>
+</html>
+"""
 
 
 # ── Lançar nota ──────────────────────────────────────────

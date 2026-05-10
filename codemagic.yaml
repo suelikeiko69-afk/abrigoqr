@@ -16,7 +16,7 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 30
     environment:
-      node: 20
+      node: 22
       xcode: latest
     scripts:
       - name: Install npm deps
@@ -45,7 +45,7 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
     environment:
-      node: 20
+      node: 22
       xcode: latest
       groups:
         - app_store_credentials   # configure em Codemagic UI

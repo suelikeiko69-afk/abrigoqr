@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Capacitor
+android/app/release/
+*.keystore
+!debug.keystore

@@ -1,0 +1,86 @@
+# Codemagic CI — build iOS do AbrigoQR
+#
+# Setup:
+# 1) Crie conta gratuita em https://codemagic.io
+# 2) Conecte este repo (GitHub/GitLab/Bitbucket)
+# 3) Em "Settings -> iOS code signing", adicione:
+#    - App Store Connect API Key (precisa de conta Apple Developer)
+#    - Bundle ID: br.org.abrigoqr.app
+# 4) Push pra `main` (ou rode manualmente em Codemagic dashboard)
+#
+# 500 min/mes gratis em runners macOS — suficiente pra builds esporadicos.
+
+workflows:
+  ios-debug:
+    name: iOS Debug (Simulator)
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment:
+      node: 20
+      xcode: latest
+    scripts:
+      - name: Install npm deps
+        script: |
+          cd mobile
+          npm ci
+      - name: Capacitor sync
+        script: |
+          cd mobile
+          npx cap sync ios
+      - name: Pod install
+        script: |
+          cd mobile/ios/App
+          pod install
+      - name: Build for simulator
+        script: |
+          cd mobile/ios/App
+          xcodebuild -workspace App.xcworkspace -scheme App \
+            -configuration Debug -sdk iphonesimulator \
+            -derivedDataPath build
+    artifacts:
+      - mobile/ios/App/build/Build/Products/Debug-iphonesimulator/App.app
+
+  ios-release:
+    name: iOS Release (App Store)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      node: 20
+      xcode: latest
+      groups:
+        - app_store_credentials   # configure em Codemagic UI
+      vars:
+        BUNDLE_ID: "br.org.abrigoqr.app"
+        XCODE_WORKSPACE: "mobile/ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+    integrations:
+      app_store_connect: app_store_connect_key
+    scripts:
+      - name: Install npm deps
+        script: |
+          cd mobile && npm ci
+      - name: Capacitor sync
+        script: |
+          cd mobile && npx cap sync ios
+      - name: Pod install
+        script: |
+          cd mobile/ios/App && pod install
+      - name: Set bundle id and version
+        script: |
+          cd mobile/ios/App
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" App/Info.plist
+      - name: Code signing setup
+        script: |
+          xcode-project use-profiles
+      - name: Archive + IPA
+        script: |
+          cd mobile/ios/App
+          xcode-project build-ipa \
+            --workspace App.xcworkspace \
+            --scheme App
+    artifacts:
+      - mobile/ios/App/build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true

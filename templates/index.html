@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AbrigoQR · Nota Fiscal Paulista</title>
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="theme-color" content="#0A5C45">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="AbrigoQR">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@400;500&family=Nunito:wght@400;500;600;700&display=swap');
+
+    :root {
+      --v:    #0A5C45;
+      --vm:   #0F7A5C;
+      --vl:   #D6F0E8;
+      --vxl:  #EDFAF5;
+      --vd:   #063D2E;
+      --o:    #9A6B00;
+      --ol:   #FFF3CD;
+      --r:    #B91C1C;
+      --rl:   #FEE2E2;
+      --a:    #1D4ED8;
+      --al:   #DBEAFE;
+      --lj:   #C2410C;
+      --ljl:  #FED7AA;
+      --c:    #1A1A18;
+      --cm:   #58584F;
+      --cl:   #F0EFE9;
+      --bd:   #D0CEC6;
+      --w:    #FEFEFE;
+      --rad:  13px;
+      --sh:   0 2px 16px rgba(0,0,0,0.07);
+      --shh:  0 8px 32px rgba(0,0,0,0.13);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: #E8E6DE;
+      color: var(--c);
+      min-height: 100vh;
+      font-size: 15px;
+    }
+
+    /* ══ HEADER ══ */
+    .hdr {
+      background: var(--vd);
+      height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 18px;
+      position: sticky; top: 0; z-index: 80;
+      box-shadow: 0 2px 14px rgba(0,0,0,0.25);
+    }
+    .hdr-brand {
+      font-family: 'Lora', serif;
+      color: #fff; font-size: 1.15rem;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .hdr-logo {
+      width: 32px; height: 32px; background: var(--vm);
+      border-radius: 9px; display: flex; align-items: center;
+      justify-content: center; font-size: 17px;
+    }
+    .hdr-pill {
+      background: rgba(255,255,255,0.13); border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 20px; padding: 4px 11px;
+      font-size: 0.72rem; color: rgba(255,255,255,0.8);
+      display: flex; align-items: center; gap: 5px;
+    }
+    .hdr-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* ══ TAB NAV ══ */
+    .tabs {
+      background: var(--w); border-bottom: 1px solid var(--bd);
+      display: flex; overflow-x: auto;
+      padding: 0 4px;
+    }
+    .tab {
+      padding: 13px 16px; font-size: 0.8rem; font-weight: 600;
+      color: var(--cm); cursor: pointer; white-space: nowrap;
+      border-bottom: 2.5px solid transparent;
+      display: flex; align-items: center; gap: 6px;
+      transition: all .15s; user-select: none;
+    }
+    .tab:hover { color: var(--v); }
+    .tab.on { color: var(--v); border-bottom-color: var(--v); }
+    .tab-badge {
+      background: var(--v); color: #fff; border-radius: 10px;
+      padding: 1px 6px; font-size: 0.67rem; font-weight: 700;
+    }
+
+    /* ══ WRAP ══ */
+    .wrap { max-width: 540px; margin: 0 auto; padding: 22px 14px 48px; }
+    .panel { display: none; }
+    .panel.on { display: block; animation: fadeUp .28s ease; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(7px)} to{opacity:1;transform:none} }
+
+    /* ══ CARD ══ */
+    .card {
+      background: var(--w); border: 1px solid var(--bd);
+      border-radius: var(--rad); box-shadow: var(--sh);
+      overflow: hidden; margin-bottom: 16px;
+    }
+    .card-h {
+      padding: 14px 18px 12px; border-bottom: 1px solid var(--bd);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .card-ico {
+      width: 34px; height: 34px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px; flex-shrink: 0;
+    }
+    .ci-v { background: var(--vl); }
+    .ci-o { background: var(--ol); }
+    .ci-a { background: var(--al); }
+    .ci-r { background: var(--rl); }
+    .ci-j { background: var(--ljl); }
+    .card-ttl {
+      font-family: 'Lora', serif; font-size: 1rem; color: var(--c); flex: 1;
+    }
+    .card-b { padding: 18px; }
+
+    /* ══ BOTÃO PRINCIPAL ══ */
+    .btn-main {
+      width: 100%; padding: 16px; border: none; border-radius: 11px;
+      font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      gap: 10px; transition: all .16s; position: relative; overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .btn-main.verde { background: var(--v); color: #fff; }
+    .btn-main.verde:hover { background: var(--vm); box-shadow: 0 4px 18px rgba(10,92,69,.3); }
+    .btn-main.azul  { background: var(--a); color: #fff; }
+    .btn-main.azul:hover  { background: #1a44c4; box-shadow: 0 4px 18px rgba(29,78,216,.3); }
+    .btn-main.laranja { background: var(--lj); color: #fff; }
+    .btn-main.laranja:hover { background: #a83509; }
+    .btn-main:active { transform: scale(0.975); }
+    .btn-main:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+    /* spinner dentro do botão */
+    .btn-spin {
+      width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,.35);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin .7s linear infinite; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn-sec {
+      width: 100%; padding: 10px 16px; border: 1.5px solid var(--bd);
+      background: var(--w); color: var(--c); border-radius: 10px;
+      font-family: 'Nunito', sans-serif; font-size: 0.84rem; font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      gap: 7px; transition: all .14s; margin-bottom: 8px;
+    }
+    .btn-sec:hover { background: var(--cl); border-color: var(--cm); }
+
+    /* ══ SCANNER ══ */
+    .scan-wrap { position: relative; border-radius: 10px; overflow: hidden; background: #000; }
+    #reader { width: 100%; }
+    #reader video { width: 100% !important; height: auto !important; }
+    #reader__scan_region { border: none !important; }
+    #reader__header_message, #reader__camera_selection,
+    #reader__filescan_input, #reader__dashboard_section_swaplink { display: none !important; }
+    .scan-overlay { position: absolute; inset: 0; pointer-events: none; }
+    .sc { position: absolute; width: 24px; height: 24px; border-color: #4ade80; border-style: solid; }
+    .sc-tl { top:12px;left:12px; border-width:2.5px 0 0 2.5px; border-radius:3px 0 0 0; }
+    .sc-tr { top:12px;right:12px; border-width:2.5px 2.5px 0 0; border-radius:0 3px 0 0; }
+    .sc-bl { bottom:12px;left:12px; border-width:0 0 2.5px 2.5px; border-radius:0 0 0 3px; }
+    .sc-br { bottom:12px;right:12px; border-width:0 2.5px 2.5px 0; border-radius:0 0 3px 0; }
+    .scan-beam {
+      position: absolute; left:12px; right:12px; height:2px;
+      background: linear-gradient(90deg,transparent,#4ade80 40%,#86efac 60%,transparent);
+      animation: beam 2.5s ease-in-out infinite; pointer-events: none;
+    }
+    @keyframes beam { 0%{top:12px;opacity:0} 4%{opacity:1} 90%{top:calc(100% - 12px);opacity:1} 100%{top:12px;opacity:0} }
+    .scan-hint { text-align:center; font-size:0.75rem; color:var(--cm); padding:6px 0 0; }
+
+    /* ══ STATUS ══ */
+    #status-bar {
+      border-radius: 9px; padding: 10px 14px; font-size: 0.82rem; font-weight: 600;
+      display: flex; align-items: center; gap: 9px; margin-top: 10px; transition: all .25s;
+    }
+    .s-idle { background:var(--cl); color:var(--cm); }
+    .s-proc { background:#EFF6FF; color:var(--a); border:1px solid #BFDBFE; }
+    .s-ok   { background:var(--vl); color:var(--v); border:1px solid #6EE7B7; }
+    .s-err  { background:var(--rl); color:var(--r); border:1px solid #FCA5A5; }
+    .s-dup  { background:var(--ol); color:var(--o); border:1px solid #FDE68A; }
+    .s-spin { width:15px;height:15px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0; }
+
+    /* ══ PREVIEW IMAGEM ══ */
+    #img-preview-wrap { display:none; margin:12px 0 0; position:relative; }
+    #img-preview {
+      width:100%; max-height:260px; object-fit:contain;
+      border-radius:10px; border:1px solid var(--bd);
+      background: var(--cl);
+    }
+    .img-clear {
+      position:absolute; top:8px; right:8px;
+      background:rgba(0,0,0,.55); color:#fff;
+      border:none; border-radius:50%; width:28px; height:28px;
+      font-size:14px; cursor:pointer; display:flex;
+      align-items:center; justify-content:center;
+      transition: background .15s;
+    }
+    .img-clear:hover { background:rgba(0,0,0,.8); }
+
+    /* ══ ÁREA DE DROP ══ */
+    .drop-zone {
+      border: 2px dashed var(--bd); border-radius: 11px;
+      padding: 28px 16px; text-align: center;
+      cursor: pointer; transition: all .18s;
+      background: var(--cl); position: relative;
+    }
+    .drop-zone:hover, .drop-zone.drag { border-color: var(--vm); background: var(--vxl); }
+    .drop-zone input { position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%; }
+    .drop-icon { font-size: 2.2rem; margin-bottom: 8px; }
+    .drop-txt { font-size: 0.88rem; color: var(--cm); line-height: 1.5; }
+    .drop-txt strong { color: var(--v); }
+
+    /* ══ IA RESULTADO ══ */
+    #ia-resultado { display:none; margin-top:14px; }
+    .ia-field {
+      background: var(--cl); border: 1px solid var(--bd); border-radius: 8px;
+      padding: 9px 12px; font-family: 'DM Mono', monospace; font-size: 0.75rem;
+      color: var(--c); word-break: break-all; line-height: 1.7; margin:4px 0 10px;
+    }
+    .ia-field.editavel {
+      background: var(--w); outline: none; cursor: text;
+      border-color: var(--vm);
+    }
+    .ia-field.editavel:focus { border-color: var(--v); box-shadow: 0 0 0 3px rgba(10,92,69,.12); }
+
+    /* ══ FORM ALTERNATIVO ══ */
+    .form-group { margin-bottom: 14px; }
+    .form-lbl {
+      display: block; font-size: 0.74rem; font-weight: 700;
+      color: var(--cm); text-transform: uppercase;
+      letter-spacing: .45px; margin-bottom: 5px;
+    }
+    .form-lbl .req { color: var(--r); }
+    .form-ctrl {
+      width: 100%; padding: 10px 13px;
+      border: 1.5px solid var(--bd); border-radius: 9px;
+      font-family: 'Nunito', sans-serif; font-size: 0.88rem;
+      color: var(--c); background: var(--w);
+      outline: none; transition: border-color .16s;
+    }
+    .form-ctrl:focus { border-color: var(--v); box-shadow: 0 0 0 3px rgba(10,92,69,.1); }
+    .form-ctrl.mono { font-family: 'DM Mono', monospace; letter-spacing: .4px; }
+    .form-hint { font-size: 0.71rem; color: #bbb; margin-top: 4px; }
+
+    /* Autocomplete estabelecimento */
+    .autocomplete-wrap { position: relative; }
+    #estab-suggestions {
+      position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+      background: var(--w); border: 1.5px solid var(--bd); border-top: none;
+      border-radius: 0 0 9px 9px; box-shadow: var(--shh);
+      max-height: 200px; overflow-y: auto; display: none;
+    }
+    .sugg-item {
+      padding: 10px 13px; cursor: pointer; font-size: 0.85rem;
+      border-bottom: 1px solid var(--cl); transition: background .12s;
+    }
+    .sugg-item:last-child { border-bottom: none; }
+    .sugg-item:hover { background: var(--vxl); }
+    .sugg-nome { font-weight: 600; color: var(--c); }
+    .sugg-cnpj { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--cm); }
+
+    /* ══ MODAL ══ */
+    .modal-bg {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.52); z-index: 200;
+      align-items: center; justify-content: center; padding: 16px;
+    }
+    .modal-bg.on { display: flex; }
+    .modal {
+      background: var(--w); border-radius: 16px; box-shadow: var(--shh);
+      width: 100%; max-width: 480px; max-height: 92vh; overflow-y: auto;
+      animation: modalIn .22s ease;
+    }
+    @keyframes modalIn { from{transform:translateY(16px);opacity:0} to{transform:none;opacity:1} }
+    .modal-h {
+      padding: 18px 20px 14px; border-bottom: 1px solid var(--bd);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .modal-ttl { font-family: 'Lora', serif; font-size: 1.05rem; }
+    .modal-x {
+      background: none; border: none; font-size: 1.4rem; cursor: pointer;
+      color: var(--cm); padding: 4px 8px; border-radius: 6px;
+    }
+    .modal-x:hover { background: var(--cl); }
+    .modal-b { padding: 20px; }
+    .modal-f { padding: 14px 20px; border-top: 1px solid var(--bd); display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* ══ LISTA ESTABELECIMENTOS ══ */
+    .estab-item {
+      display: flex; align-items: flex-start; gap: 11px;
+      padding: 11px 0; border-bottom: 1px solid var(--cl);
+    }
+    .estab-item:last-child { border-bottom: none; }
+    .estab-ava {
+      width: 36px; height: 36px; border-radius: 9px; background: var(--vl);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; flex-shrink: 0; color: var(--v); font-weight: 700;
+    }
+    .estab-nome { font-weight: 700; font-size: 0.88rem; }
+    .estab-cnpj { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--cm); }
+    .estab-del {
+      margin-left: auto; background: none; border: none;
+      color: #ccc; font-size: 1rem; cursor: pointer; padding: 4px 6px;
+      border-radius: 6px; flex-shrink: 0;
+    }
+    .estab-del:hover { color: var(--r); background: var(--rl); }
+
+    /* ══ CONTADORES ══ */
+    .cnt-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+    .cnt-box { background: var(--cl); border-radius: 10px; padding: 12px; text-align: center; }
+    .cnt-num { font-family: 'Lora', serif; font-size: 1.75rem; color: var(--v); line-height: 1; }
+    .cnt-lbl { font-size: 0.69rem; color: var(--cm); font-weight: 600; margin-top: 3px; }
+
+    /* ══ HISTÓRICO ══ */
+    .hist-item {
+      display: flex; align-items: flex-start; gap: 9px;
+      padding: 9px 0; border-bottom: 1px solid var(--cl);
+    }
+    .hist-item:last-child { border-bottom: none; }
+    .hist-ico { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+    .hi-ok { background: var(--vl); }
+    .hi-er { background: var(--rl); }
+
+    /* ══ TAGS ══ */
+    .tag { display: inline-flex; align-items: center; gap: 4px; border-radius: 20px; padding: 3px 9px; font-size: 0.71rem; font-weight: 700; }
+    .t-v { background: var(--vl); color: var(--v); }
+    .t-o { background: var(--ol); color: var(--o); }
+    .t-r { background: var(--rl); color: var(--r); }
+    .t-a { background: var(--al); color: var(--a); }
+    .t-j { background: var(--ljl); color: var(--lj); }
+
+    /* ══ ALERTAS ══ */
+    .alerta { border-radius: 8px; padding: 10px 13px; font-size: 0.81rem; line-height: 1.5; border-left: 3px solid; margin: 10px 0; }
+    .al-v { background:var(--vl); border-color:var(--vm); color:var(--v); }
+    .al-o { background:var(--ol); border-color:var(--o); color:#6b4c08; }
+    .al-a { background:var(--al); border-color:var(--a); color:var(--a); }
+    .al-r { background:var(--rl); border-color:var(--r); color:var(--r); }
+
+    /* ══ DIVISOR ══ */
+    .sep { height: 1px; background: var(--bd); margin: 16px 0; }
+    .sep-txt {
+      display: flex; align-items: center; gap: 10px; margin: 14px 0;
+      font-size: 0.75rem; color: var(--cm); font-weight: 600;
+    }
+    .sep-txt::before, .sep-txt::after { content:''; flex:1; height:1px; background:var(--bd); }
+
+    /* ══ ENTIDADE BOX ══ */
+    .ent-box {
+      background: var(--vxl); border: 2px dashed var(--vm);
+      border-radius: 11px; padding: 13px 15px;
+      display: flex; align-items: center; gap: 12px; margin-top: 10px;
+    }
+    .ent-ava {
+      width: 40px; height: 40px; background: var(--v); border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; color: #fff; flex-shrink: 0;
+    }
+    .ent-nm { font-weight: 700; font-size: 0.88rem; color: var(--v); }
+    .ent-cnpj { font-family: 'DM Mono', monospace; font-size: 0.71rem; color: var(--cm); }
+
+    @media (max-width:380px) {
+      .wrap { padding: 14px 10px 40px; }
+      .card-b { padding: 14px 13px; }
+      .cnt-grid { grid-template-columns: repeat(2,1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="hdr-brand">
+    <div class="hdr-logo">🌿</div>
+    AbrigoQR
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <div class="hdr-pill" id="hdr-colab-pill" onclick="openModal('modal-colab')" style="cursor:pointer" title="Clique para identificar-se">
+      <span>👤</span>
+      <span id="hdr-colab-nome">Identificar-se</span>
+    </div>
+    <div class="hdr-pill">
+      <span class="hdr-dot"></span>
+      <span id="hdr-entidade">Casa de Amparo Bom Pastor</span>
+    </div>
+  </div>
+</header>
+
+<!-- TABS -->
+<nav class="tabs">
+  <div class="tab on" onclick="showTab('scanner')">📷 Scanner</div>
+  <div class="tab" onclick="showTab('imagem')">🖼 Imagem / IA</div>
+  <div class="tab" onclick="showTab('manual')">⌨️ Manual <span class="tab-badge" id="badge-estab">0</span></div>
+  <div class="tab" onclick="showTab('historico')">📋 Histórico</div>
+</nav>
+
+<div class="wrap">
+
+<!-- ════════════════════════════════════════
+     PAINEL 1: SCANNER QR CODE
+════════════════════════════════════════ -->
+<div id="panel-scanner" class="panel on">
+  <div class="card">
+    <div class="card-h">
+      <div class="card-ico ci-v">📷</div>
+      <div class="card-ttl">Scanner QR Code</div>
+    </div>
+    <div class="card-b">
+      <!-- Estado: pré-autorização -->
+      <div id="perm-box">
+        <div style="text-align:center;margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:700;color:var(--cm);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Como funciona</div>
+          <div style="display:flex;justify-content:center;gap:7px;flex-wrap:wrap;margin-bottom:16px">
+            <div style="background:var(--cl);border-radius:20px;padding:5px 11px;font-size:0.74rem;color:var(--cm);display:flex;align-items:center;gap:5px">
+              <span style="width:18px;height:18px;background:var(--v);color:#fff;border-radius:50%;font-size:.68rem;font-weight:700;display:flex;align-items:center;justify-content:center">1</span>Autorize a câmera
+            </div>
+            <div style="background:var(--cl);border-radius:20px;padding:5px 11px;font-size:0.74rem;color:var(--cm);display:flex;align-items:center;gap:5px">
+              <span style="width:18px;height:18px;background:var(--v);color:#fff;border-radius:50%;font-size:.68rem;font-weight:700;display:flex;align-items:center;justify-content:center">2</span>Aponte para o QR
+            </div>
+            <div style="background:var(--cl);border-radius:20px;padding:5px 11px;font-size:0.74rem;color:var(--cm);display:flex;align-items:center;gap:5px">
+              <span style="width:18px;height:18px;background:var(--v);color:#fff;border-radius:50%;font-size:.68rem;font-weight:700;display:flex;align-items:center;justify-content:center">3</span>Lançamento automático
+            </div>
+          </div>
+        </div>
+        <button class="btn-main verde" id="btn-cam" onclick="iniciarCamera()">
+          <span>📷</span><span id="btn-cam-txt">Autorizar câmera e escanear</span>
+        </button>
+        <!-- Permissão negada -->
+        <div id="perm-neg" style="display:none;text-align:center;margin-top:10px">
+          <div class="alerta al-r">
+            🚫 <strong>Câmera bloqueada.</strong> Toque no ícone 🔒 na barra de endereços → Permissões → Câmera → Permitir → recarregue.
+          </div>
+          <button class="btn-sec" onclick="location.reload()">🔄 Tentar novamente</button>
+        </div>
+      </div>
+
+      <!-- Estado: câmera ativa -->
+      <div id="scan-box" style="display:none">
+        <div class="scan-wrap">
+          <div id="reader"></div>
+          <div class="scan-overlay">
+            <div class="sc sc-tl"></div><div class="sc sc-tr"></div>
+            <div class="sc sc-bl"></div><div class="sc sc-br"></div>
+            <div class="scan-beam"></div>
+          </div>
+        </div>
+        <div class="scan-hint">Centralize o QR Code dentro do quadro verde</div>
+        <button class="btn-main" style="background:var(--r);margin-top:10px" onclick="pararCamera()">
+          <span>⏹</span><span>Parar câmera</span>
+        </button>
+      </div>
+
+      <div id="status-bar" class="s-idle">
+        <span>📷</span><span id="status-txt">Câmera desligada</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Entidade -->
+  <div class="card">
+    <div class="card-h">
+      <div class="card-ico ci-v">🏠</div>
+      <div class="card-ttl">Entidade beneficiada</div>
+    </div>
+    <div class="card-b">
+      <div class="ent-box">
+        <div class="ent-ava">🏠</div>
+        <div>
+          <div class="ent-nm" id="ent-nome-s">{{ entidade_nome or "Casa de Amparo Bom Pastor" }}</div>
+          <div class="ent-cnpj" id="ent-cnpj-s">CNPJ: {{ entidade_cnpj or "05.895.268/0001-52" }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     PAINEL 2: IMAGEM / IA
+════════════════════════════════════════ -->
+<div id="panel-imagem" class="panel">
+  <div class="card">
+    <div class="card-h">
+      <div class="card-ico ci-a">🖼</div>
+      <div class="card-ttl">Leitura por imagem com IA</div>
+      <span class="tag t-a">Claude AI</span>
+    </div>
+    <div class="card-b">
+      <div class="alerta al-a" style="margin-bottom:14px">
+        📸 Tire foto do cupom fiscal ou anexe uma imagem. A IA extrai automaticamente CNPJ, valor, data, COO e chave de acesso.
+      </div>
+
+      <!-- Zona de drop / botão anexar -->
+      <div class="drop-zone" id="drop-zone"
+           ondragover="ev.preventDefault();this.classList.add('drag')"
+           ondragleave="this.classList.remove('drag')"
+           ondrop="onDrop(event)">
+        <input type="file" id="img-input" accept="image/*" capture="environment" onchange="onImgSelect(event)">
+        <div class="drop-icon">🖼</div>
+        <div class="drop-txt">
+          <strong>Anexar imagem</strong><br>
+          Arraste ou toque para selecionar<br>
+          <span style="font-size:0.72rem">JPG, PNG, WEBP · máx. 10 MB</span>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div id="img-preview-wrap">
+        <img id="img-preview" src="" alt="preview">
+        <button class="img-clear" onclick="limparImagem()" title="Remover">✕</button>
+      </div>
+
+      <!-- Botão Anexar Imagem (alternativo ao drop, estilo destacado) -->
+      <button class="btn-main azul" style="margin-top:12px" onclick="document.getElementById('img-input').click()">
+        <span>📎</span><span>Anexar imagem do cupom</span>
+      </button>
+
+      <!-- Botão analisar -->
+      <button class="btn-main verde" id="btn-ia" onclick="analisarImagem()" disabled>
+        <span>🤖</span><span id="btn-ia-txt">Analisar com IA</span>
+      </button>
+
+      <!-- Resultado IA -->
+      <div id="ia-resultado">
+        <div class="sep"></div>
+        <div style="font-size:0.75rem;font-weight:700;color:var(--cm);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">
+          ✨ Dados extraídos pela IA — confirme antes de lançar
+        </div>
+
+        <div class="form-group">
+          <label class="form-lbl">Chave de acesso / COO identificado</label>
+          <div id="ia-chave" class="ia-field editavel" contenteditable="true" spellcheck="false"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label class="form-lbl">CNPJ emitente</label>
+            <div id="ia-cnpj" class="ia-field editavel" contenteditable="true" spellcheck="false"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-lbl">Valor (R$)</label>
+            <div id="ia-valor" class="ia-field editavel" contenteditable="true" spellcheck="false"></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group">
+            <label class="form-lbl">Data emissão</label>
+            <div id="ia-data" class="ia-field editavel" contenteditable="true" spellcheck="false"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-lbl">COO</label>
+            <div id="ia-coo" class="ia-field editavel" contenteditable="true" spellcheck="false"></div>
+          </div>
+        </div>
+
+        <div id="ia-alerta" class="alerta" style="display:none"></div>
+
+        <button class="btn-main verde" onclick="lancarNotaIA()">
+          <span>🚀</span><span>Confirmar e lançar no portal NFP</span>
+        </button>
+        <button class="btn-sec" onclick="limparImagem()">🗑 Limpar e tentar outra imagem</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     PAINEL 3: MANUAL COM CADASTRO ESTABELECIMENTO
+════════════════════════════════════════ -->
+<div id="panel-manual" class="panel">
+
+  <!-- Cadastrar estabelecimento -->
+  <div class="card">
+    <div class="card-h">
+      <div class="card-ico ci-o">🏪</div>
+      <div class="card-ttl">Estabelecimentos cadastrados</div>
+      <button class="btn-sec" style="width:auto;margin:0;padding:6px 12px;font-size:0.78rem"
+              onclick="openModal('modal-estab')">+ Cadastrar</button>
+    </div>
+    <div class="card-b">
+      <div class="alerta al-o" style="margin-bottom:12px">
+        💡 Cadastre o estabelecimento uma única vez. Na próxima nota, basta digitar o nome para preencher o CNPJ automaticamente.
+      </div>
+      <div id="lista-estab">
+        <div style="text-align:center;padding:20px 0;color:#ccc;font-size:0.82rem">Nenhum estabelecimento cadastrado</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formulário manual da nota -->
+  <div class="card">
+    <div class="card-h">
+      <div class="card-ico ci-j">⌨️</div>
+      <div class="card-ttl">Lançar nota manualmente</div>
+    </div>
+    <div class="card-b">
+      <div class="alerta al-o" style="margin-bottom:14px">
+        Use quando o QR Code não puder ser lido nem a foto interpretada.
+      </div>
+
+      <!-- Nome do estabelecimento com autocomplete -->
+      <div class="form-group autocomplete-wrap">
+        <label class="form-lbl">Nome do estabelecimento <span class="req">*</span></label>
+        <input type="text" id="m-estab" class="form-ctrl" placeholder="Digite o nome..." autocomplete="off"
+               oninput="filtrarEstab(this.value)" onfocus="filtrarEstab(this.value)">
+        <div id="estab-suggestions"></div>
+        <div class="form-hint">Digite para buscar ou <strong style="color:var(--v);cursor:pointer" onclick="openModal('modal-estab')">cadastrar novo</strong></div>
+      </div>
+
+      <!-- CNPJ (preenchido automaticamente) -->
+      <div class="form-group">
+        <label class="form-lbl">CNPJ do estabelecimento</label>
+        <input type="text" id="m-cnpj" class="form-ctrl mono" placeholder="00.000.000/0000-00"
+               maxlength="18" oninput="maskCNPJ(this)">
+        <div class="form-hint">Preenchido automaticamente ao selecionar o estabelecimento</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group">
+          <label class="form-lbl">Data de emissão <span class="req">*</span></label>
+          <input type="date" id="m-data" class="form-ctrl">
+        </div>
+        <div class="form-group">
+          <label class="form-lbl">Valor do cupom (R$) <span class="req">*</span></label>
+          <input type="number" id="m-valor" class="form-ctrl" placeholder="0,00"
+                 step="0.01" min="0">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-lbl">COO — Contador de Ordem da Operação <span class="req">*</span></label>
+        <input type="text" id="m-coo" class="form-ctrl mono" placeholder="000001" maxlength="9">
+        <div class="form-hint">Número impresso no cupom como COO, ECF ou Nº do cupom</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-lbl">Chave de acesso (opcional — 44 dígitos)</label>
+        <input type="text" id="m-chave" class="form-ctrl mono" maxlength="44"
+               placeholder="Deixe em branco se não tiver">
+        <div class="form-hint">Preencha somente se tiver a chave NFC-e</div>
+      </div>
+
+      <button class="btn-main laranja" onclick="lancarManual()">
+        <span>🚀</span><span>Lançar nota manualmente</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     PAINEL 4: HISTÓRICO
+════════════════════════════════════════ -->
+<div id="panel-historico" class="panel">
+  <div class="card">
+    <div class="card-h">
+      <div class="card-ico ci-v">📊</div>
+      <div class="card-ttl">Resumo da sessão</div>
+      <button class="btn-sec" style="width:auto;margin:0;padding:6px 12px;font-size:0.78rem"
+              onclick="exportarCSV()">⬇ CSV</button>
+    </div>
+    <div class="card-b">
+      <div class="cnt-grid">
+        <div class="cnt-box"><div class="cnt-num" id="cnt-t">0</div><div class="cnt-lbl">Total</div></div>
+        <div class="cnt-box"><div class="cnt-num" id="cnt-ok" style="color:var(--v)">0</div><div class="cnt-lbl">Lançadas</div></div>
+        <div class="cnt-box"><div class="cnt-num" id="cnt-d" style="color:var(--o)">0</div><div class="cnt-lbl">Duplicatas</div></div>
+        <div class="cnt-box"><div class="cnt-num" id="cnt-e" style="color:var(--r)">0</div><div class="cnt-lbl">Erros</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-h">
+      <div class="card-ico ci-v">🧾</div>
+      <div class="card-ttl">Notas processadas</div>
+    </div>
+    <div class="card-b" id="hist-lista">
+      <div style="text-align:center;padding:24px 0;color:#ccc;font-size:0.83rem">
+        Nenhuma nota ainda
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /wrap -->
+
+<!-- ════ MODAL: IDENTIFICAÇÃO DO COLABORADOR ════ -->
+<div class="modal-bg" id="modal-colab">
+  <div class="modal">
+    <div class="modal-h">
+      <div class="modal-ttl">👤 Quem está lançando?</div>
+      <button class="modal-x" onclick="closeModal('modal-colab')">×</button>
+    </div>
+    <div class="modal-b">
+      <div class="alerta al-a" style="margin-bottom:16px">
+        Informe seu nome para identificar os cupons que você lançar. Isso ajuda a acompanhar a contribuição de cada colaborador.
+      </div>
+      <div class="form-group">
+        <label class="form-lbl">Seu nome <span class="req">*</span></label>
+        <input type="text" id="colab-nome-input" class="form-ctrl" placeholder="Ex: Maria Silva"
+               maxlength="50" autocomplete="name"
+               onkeydown="if(event.key==='Enter') salvarColab()">
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn-main verde" style="width:auto;padding:10px 24px" onclick="salvarColab()">✅ Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ MODAL: CADASTRAR ESTABELECIMENTO ════ -->
+<div class="modal-bg" id="modal-estab">
+  <div class="modal">
+    <div class="modal-h">
+      <div class="modal-ttl">🏪 Cadastrar estabelecimento</div>
+      <button class="modal-x" onclick="closeModal('modal-estab')">×</button>
+    </div>
+    <div class="modal-b">
+      <div class="alerta al-a" style="margin-bottom:16px">
+        Cadastre uma vez. Nas próximas notas, o CNPJ será preenchido automaticamente ao digitar o nome.
+      </div>
+      <div class="form-group">
+        <label class="form-lbl">Nome do estabelecimento <span class="req">*</span></label>
+        <input type="text" id="ne-nome" class="form-ctrl" placeholder="Supermercado Exemplo">
+      </div>
+      <div class="form-group">
+        <label class="form-lbl">CNPJ <span class="req">*</span></label>
+        <input type="text" id="ne-cnpj" class="form-ctrl mono" placeholder="00.000.000/0000-00"
+               maxlength="18" oninput="maskCNPJ(this)">
+      </div>
+      <div class="form-group">
+        <label class="form-lbl">Categoria (opcional)</label>
+        <select id="ne-cat" class="form-ctrl">
+          <option>Supermercado / Mercado</option>
+          <option>Farmácia / Drogaria</option>
+          <option>Restaurante / Lanchonete</option>
+          <option>Posto de combustível</option>
+          <option>Padaria / Confeitaria</option>
+          <option>Material de construção</option>
+          <option>Serviços gerais</option>
+          <option>Outro</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn-sec" style="width:auto;margin:0" onclick="closeModal('modal-estab')">Cancelar</button>
+      <button class="btn-main verde" style="width:auto;margin:0;padding:10px 22px"
+              onclick="cadastrarEstab()">✅ Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ MODAL: NOTA LANÇADA ════ -->
+<div class="modal-bg" id="modal-ok">
+  <div class="modal">
+    <div class="modal-h">
+      <div class="modal-ttl">✅ Nota enviada</div>
+      <button class="modal-x" onclick="closeModal('modal-ok')">×</button>
+    </div>
+    <div class="modal-b" id="modal-ok-body"></div>
+    <div class="modal-f">
+      <button class="btn-main verde" style="width:auto;padding:10px 24px"
+              onclick="closeModal('modal-ok')">OK, próxima nota</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  ESTADO GLOBAL
+// ══════════════════════════════════════════════
+const APP = {
+  scanner: null,
+  scanAtivo: false,
+  bloqueado: false,
+  imgBase64: null,
+  imgMime: 'image/jpeg',
+  contadores: { t:0, ok:0, d:0, e:0 },
+  historico: [],
+  estabelecimentos: [],
+  colaborador: ''
+};
+
+// ── Persistência localStorage ──
+function salvar() {
+  localStorage.setItem('aqr', JSON.stringify({
+    estabs:      APP.estabelecimentos,
+    hist:        APP.historico.slice(0,200),
+    cnt:         APP.contadores,
+    colaborador: APP.colaborador
+  }));
+}
+function carregar() {
+  try {
+    const d = JSON.parse(localStorage.getItem('aqr') || '{}');
+    if (d.estabs)      APP.estabelecimentos = d.estabs;
+    if (d.hist)        APP.historico        = d.hist;
+    if (d.cnt)         APP.contadores       = d.cnt;
+    if (d.colaborador) APP.colaborador      = d.colaborador;
+  } catch(e) {}
+}
+
+function salvarColab() {
+  const nome = document.getElementById('colab-nome-input').value.trim();
+  if (!nome) { alert('Informe seu nome.'); return; }
+  APP.colaborador = nome;
+  document.getElementById('hdr-colab-nome').textContent = nome;
+  salvar();
+  closeModal('modal-colab');
+}
+
+function initColab() {
+  if (APP.colaborador) {
+    document.getElementById('hdr-colab-nome').textContent = APP.colaborador;
+  } else {
+    setTimeout(() => {
+      document.getElementById('colab-nome-input').value = '';
+      openModal('modal-colab');
+    }, 600);
+  }
+}
+
+// ══════════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════════
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+  const ids = ['scanner','imagem','manual','historico'];
+  document.querySelectorAll('.tab')[ids.indexOf(id)].classList.add('on');
+  document.getElementById('panel-' + id).classList.add('on');
+  if (id === 'manual')    renderEstabs();
+  if (id === 'historico') renderHistorico();
+}
+
+// ══════════════════════════════════════════════
+//  MODAIS
+// ══════════════════════════════════════════════
+function openModal(id)  { document.getElementById(id).classList.add('on'); }
+function closeModal(id) { document.getElementById(id).classList.remove('on'); }
+document.querySelectorAll('.modal-bg').forEach(bg =>
+  bg.addEventListener('click', e => { if (e.target === bg) bg.classList.remove('on'); })
+);
+
+// ══════════════════════════════════════════════
+//  SCANNER QR CODE
+// ══════════════════════════════════════════════
+async function iniciarCamera() {
+  const btn = document.getElementById('btn-cam');
+  document.getElementById('btn-cam-txt').textContent = 'Solicitando permissão...';
+  btn.disabled = true;
+  setStatus('proc', '🔐 Aguardando autorização da câmera...');
+
+  try {
+    const ts = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } });
+    ts.getTracks().forEach(t => t.stop());
+  } catch(err) {
+    btn.disabled = false;
+    document.getElementById('btn-cam-txt').textContent = 'Autorizar câmera e escanear';
+    if (err.name === 'NotAllowedError') {
+      document.getElementById('perm-neg').style.display = 'block';
+      setStatus('err', '🚫 Permissão negada');
+    } else {
+      setStatus('err', '❌ ' + err.message);
+    }
+    return;
+  }
+
+  document.getElementById('perm-box').style.display = 'none';
+  document.getElementById('scan-box').style.display = 'block';
+  setStatus('proc', '📷 Câmera ativa — aponte para o QR Code');
+
+  APP.scanner = new Html5Qrcode('reader');
+  APP.scanAtivo = true;
+
+  try {
+    await APP.scanner.start(
+      { facingMode:'environment' },
+      { fps:12, qrbox:{width:230,height:230}, aspectRatio:1.33 },
+      onQR, () => {}
+    );
+  } catch(e) {
+    setStatus('err', '❌ Erro ao iniciar scanner: ' + e);
+    document.getElementById('perm-box').style.display = 'block';
+    document.getElementById('scan-box').style.display = 'none';
+  }
+}
+
+async function pararCamera() {
+  if (APP.scanner && APP.scanAtivo) {
+    try { await APP.scanner.stop(); } catch(e) {}
+    APP.scanAtivo = false;
+  }
+  document.getElementById('perm-box').style.display = 'block';
+  document.getElementById('scan-box').style.display = 'none';
+  document.getElementById('btn-cam').disabled = false;
+  document.getElementById('btn-cam-txt').textContent = 'Autorizar câmera e escanear';
+  setStatus('idle', '📷 Câmera desligada');
+}
+
+async function onQR(txt) {
+  if (APP.bloqueado) return;
+  APP.bloqueado = true;
+  if (navigator.vibrate) navigator.vibrate([60,30,60]);
+
+  const tipo  = detectTipo(txt);
+  const dados = tipo === 'sat' ? parseSAT(txt) : parseNFCe(txt);
+
+  if (!dados?.chave) {
+    setStatus('err', '❌ QR Code inválido');
+    setTimeout(() => { APP.bloqueado = false; }, 2000);
+    return;
+  }
+
+  const dup = APP.historico.find(h => h.chave === dados.chave);
+  if (dup) {
+    setStatus('dup', '⚠ Duplicata — lançada às ' + dup.hora);
+    APP.contadores.d++;
+    atualizarCnt();
+    setTimeout(() => { APP.bloqueado = false; }, 3000);
+    return;
+  }
+
+  setStatus('proc', '🤖 Enviando para o robô NFP...');
+  await enviarNota(dados, 'qr');
+  setTimeout(() => { APP.bloqueado = false; if (APP.scanAtivo) setStatus('proc','📷 Pronto — próxima nota'); }, 3500);
+}
+
+// ══════════════════════════════════════════════
+//  IMAGEM / IA
+// ══════════════════════════════════════════════
+function onImgSelect(e) {
+  const file = e.target.files[0];
+  if (file) processarArquivo(file);
+}
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) processarArquivo(file);
+}
+
+function processarArquivo(file) {
+  if (file.size > 10 * 1024 * 1024) { alert('Imagem muito grande. Máximo 10 MB.'); return; }
+  APP.imgMime = file.type;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    APP.imgBase64 = ev.target.result.split(',')[1];
+    document.getElementById('img-preview').src = ev.target.result;
+    document.getElementById('img-preview-wrap').style.display = 'block';
+    document.getElementById('btn-ia').disabled = false;
+    document.getElementById('ia-resultado').style.display = 'none';
+    document.getElementById('ia-alerta').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+function limparImagem() {
+  APP.imgBase64 = null;
+  document.getElementById('img-preview-wrap').style.display = 'none';
+  document.getElementById('img-preview').src = '';
+  document.getElementById('img-input').value = '';
+  document.getElementById('btn-ia').disabled = true;
+  document.getElementById('ia-resultado').style.display = 'none';
+  document.getElementById('btn-ia-txt').textContent = 'Analisar com IA';
+}
+
+async function analisarImagem() {
+  if (!APP.imgBase64) return;
+  const btn = document.getElementById('btn-ia');
+  const txt = document.getElementById('btn-ia-txt');
+  btn.disabled = true;
+  txt.innerHTML = '<span class="btn-spin"></span> Analisando...';
+
+  try {
+    const resp = await fetch('/analisar-imagem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imagem_base64: APP.imgBase64, mime_type: APP.imgMime })
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) throw new Error(data.detail || 'Erro ao analisar imagem');
+
+    // Preenche campos editáveis
+    setIA('ia-chave',  data.chave  || '');
+    setIA('ia-cnpj',   data.cnpj   || '');
+    setIA('ia-valor',  data.valor  || '');
+    setIA('ia-data',   data.data   || '');
+    setIA('ia-coo',    data.coo    || '');
+
+    document.getElementById('ia-resultado').style.display = 'block';
+
+    // Alerta de confiança
+    const al = document.getElementById('ia-alerta');
+    if (data.confianca === 'baixa') {
+      al.className = 'alerta al-o';
+      al.textContent = '⚠ A IA teve dificuldade com esta imagem. Revise os campos antes de lançar.';
+      al.style.display = 'block';
+    } else if (data.confianca === 'media') {
+      al.className = 'alerta al-a';
+      al.textContent = '📋 Dados extraídos — confirme os valores antes de lançar.';
+      al.style.display = 'block';
+    } else {
+      al.style.display = 'none';
+    }
+
+  } catch(err) {
+    const al = document.getElementById('ia-alerta');
+    al.className = 'alerta al-r';
+    al.textContent = '❌ ' + err.message + ' — preencha manualmente na aba Manual.';
+    al.style.display = 'block';
+    document.getElementById('ia-resultado').style.display = 'block';
+  }
+
+  btn.disabled = false;
+  txt.textContent = 'Analisar com IA';
+}
+
+function setIA(id, val) {
+  document.getElementById(id).textContent = val;
+}
+function getIA(id) {
+  return document.getElementById(id).textContent.trim();
+}
+
+async function lancarNotaIA() {
+  const chave = getIA('ia-chave').replace(/\D/g,'');
+  const cnpj  = getIA('ia-cnpj').replace(/\D/g,'');
+  const valor = parseFloat(getIA('ia-valor').replace(',','.')) || 0;
+  const data  = getIA('ia-data') || new Date().toISOString().split('T')[0];
+  const coo   = getIA('ia-coo');
+
+  const dados = {
+    chave:  chave.length === 44 ? chave : coo || 'COO-'+coo,
+    cnpj:   cnpj || '00000000000000',
+    valor, data,
+    coo,
+    origem: 'imagem'
+  };
+
+  await enviarNota(dados, 'imagem');
+}
+
+// ══════════════════════════════════════════════
+//  LANÇAMENTO MANUAL
+// ══════════════════════════════════════════════
+async function lancarManual() {
+  const estab = document.getElementById('m-estab').value.trim();
+  const cnpj  = document.getElementById('m-cnpj').value.replace(/\D/g,'');
+  const data  = document.getElementById('m-data').value;
+  const valor = parseFloat(document.getElementById('m-valor').value) || 0;
+  const coo   = document.getElementById('m-coo').value.trim();
+  const chave = document.getElementById('m-chave').value.replace(/\D/g,'');
+
+  if (!estab)        { alert('Informe o nome do estabelecimento.'); return; }
+  if (!cnpj)         { alert('Informe o CNPJ do estabelecimento.'); return; }
+  if (!data)         { alert('Informe a data de emissão.'); return; }
+  if (!valor || valor <= 0) { alert('Informe o valor do cupom.'); return; }
+  if (!coo)          { alert('Informe o COO do cupom.'); return; }
+
+  const dados = {
+    chave:  chave.length === 44 ? chave : 'COO-' + coo,
+    cnpj,
+    valor,
+    data:   data,
+    coo,
+    nome_emitente: estab,
+    origem: 'manual'
+  };
+
+  await enviarNota(dados, 'manual');
+
+  // Limpa campos
+  document.getElementById('m-estab').value = '';
+  document.getElementById('m-cnpj').value  = '';
+  document.getElementById('m-data').value  = '';
+  document.getElementById('m-valor').value = '';
+  document.getElementById('m-coo').value   = '';
+  document.getElementById('m-chave').value = '';
+}
+
+// ══════════════════════════════════════════════
+//  ENVIO PARA O BACKEND
+// ══════════════════════════════════════════════
+async function enviarNota(dados, origem) {
+  setStatus('proc', '🤖 Enviando para o robô NFP...');
+
+  try {
+    const resp = await fetch('/lancar-nota', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chave:         dados.chave || 'SEM-CHAVE',
+        valor:         dados.valor || 0,
+        data:          dados.data  || new Date().toISOString().split('T')[0],
+        cnpj:          dados.cnpj  || '00000000000000',
+        nome_emitente: dados.nome_emitente || '',
+        coo:           dados.coo   || '',
+        origem,
+        colaborador:   APP.colaborador || ''
+      })
+    });
+    const json = await resp.json();
+
+    if (resp.status === 409) {
+      setStatus('dup', '⚠ Nota duplicada — já registrada');
+      APP.contadores.d++;
+      APP.contadores.t++;
+    } else if (resp.ok) {
+      setStatus('proc', '⏳ Recebida! Robô NFP acessando o portal...');
+      APP.contadores.ok++;
+      APP.contadores.t++;
+      adicionarHist({ ...dados, status:'proc', hora: horaAtual(), origem });
+      mostrarModalOK(dados);
+      if (json.id) pollStatus(json.id, dados);
+    } else {
+      setStatus('err', '❌ ' + (json.detail || 'Erro do servidor'));
+      APP.contadores.e++;
+      APP.contadores.t++;
+      adicionarHist({ ...dados, status:'erro', hora: horaAtual(), origem });
+    }
+  } catch(err) {
+    setStatus('err', '❌ Sem conexão — backend não responde');
+    APP.contadores.e++;
+    APP.contadores.t++;
+    adicionarHist({ ...dados, status:'erro', hora: horaAtual(), origem });
+  }
+
+  atualizarCnt();
+  salvar();
+}
+
+async function pollStatus(notaId, dados) {
+  const msgs = [
+    '⏳ Robô acessando o portal NFP...',
+    '⏳ Preenchendo dados da nota...',
+    '⏳ Selecionando entidade beneficiada...',
+    '⏳ Confirmando lançamento...',
+  ];
+  let tick = 0;
+  const MAX = 24; // ~72s máximo
+
+  const poll = async () => {
+    tick++;
+    if (tick > MAX) {
+      setStatus('err', '⏰ Timeout — verifique o histórico ou tente novamente');
+      return;
+    }
+    setStatus('proc', msgs[Math.min(tick - 1, msgs.length - 1)]);
+    try {
+      const r = await fetch(`/api/nota/${notaId}/status`);
+      const d = await r.json();
+      if (d.status === 'pendente') {
+        setTimeout(poll, 3000);
+      } else if (d.status === 'ok') {
+        setStatus('ok', '✅ Lançado com sucesso no portal NFP!');
+        // Atualiza histórico local
+        const h = APP.historico.find(x => x.chave === dados.chave);
+        if (h) h.status = 'ok';
+        salvar();
+      } else {
+        setStatus('err', `❌ Falhou no portal NFP — verifique o histórico`);
+        const h = APP.historico.find(x => x.chave === dados.chave);
+        if (h) h.status = 'erro';
+        salvar();
+      }
+    } catch(e) {
+      setTimeout(poll, 3000);
+    }
+  };
+
+  setTimeout(poll, 4000);
+}
+
+// ══════════════════════════════════════════════
+//  ESTABELECIMENTOS
+// ══════════════════════════════════════════════
+function cadastrarEstab() {
+  const nome = document.getElementById('ne-nome').value.trim();
+  const cnpj = document.getElementById('ne-cnpj').value.replace(/\D/g,'');
+  const cat  = document.getElementById('ne-cat').value;
+
+  if (!nome)        { alert('Informe o nome.'); return; }
+  if (cnpj.length !== 14) { alert('CNPJ deve ter 14 dígitos.'); return; }
+
+  const existe = APP.estabelecimentos.find(e =>
+    e.cnpj === cnpj || e.nome.toLowerCase() === nome.toLowerCase()
+  );
+  if (existe) { alert('Estabelecimento já cadastrado.'); return; }
+
+  APP.estabelecimentos.push({ nome, cnpj, cat });
+  salvar();
+  renderEstabs();
+  atualizarBadge();
+  closeModal('modal-estab');
+  document.getElementById('ne-nome').value = '';
+  document.getElementById('ne-cnpj').value = '';
+}
+
+function renderEstabs() {
+  const el = document.getElementById('lista-estab');
+  if (!APP.estabelecimentos.length) {
+    el.innerHTML = '<div style="text-align:center;padding:20px 0;color:#ccc;font-size:0.82rem">Nenhum estabelecimento cadastrado</div>';
+    return;
+  }
+  el.innerHTML = APP.estabelecimentos.map((e, i) => `
+    <div class="estab-item">
+      <div class="estab-ava">${e.nome[0].toUpperCase()}</div>
+      <div style="flex:1;min-width:0">
+        <div class="estab-nome">${e.nome}</div>
+        <div class="estab-cnpj">${fmtCNPJ(e.cnpj)} · ${e.cat}</div>
+      </div>
+      <button class="estab-del" onclick="deletarEstab(${i})" title="Remover">✕</button>
+    </div>`).join('');
+}
+
+function deletarEstab(i) {
+  if (!confirm(`Remover "${APP.estabelecimentos[i].nome}"?`)) return;
+  APP.estabelecimentos.splice(i, 1);
+  salvar();
+  renderEstabs();
+  atualizarBadge();
+}
+
+function filtrarEstab(q) {
+  const el = document.getElementById('estab-suggestions');
+  if (!q) { el.style.display = 'none'; return; }
+  const res = APP.estabelecimentos.filter(e =>
+    e.nome.toLowerCase().includes(q.toLowerCase())
+  );
+  if (!res.length) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = res.map(e => `
+    <div class="sugg-item" onclick="selecionarEstab(${JSON.stringify(e.nome)}, ${JSON.stringify(e.cnpj)})">
+      <div class="sugg-nome">${e.nome}</div>
+      <div class="sugg-cnpj">${fmtCNPJ(e.cnpj)} · ${e.cat}</div>
+    </div>`).join('');
+}
+
+function selecionarEstab(nome, cnpj) {
+  document.getElementById('m-estab').value = nome;
+  document.getElementById('m-cnpj').value  = fmtCNPJ(cnpj);
+  document.getElementById('estab-suggestions').style.display = 'none';
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.autocomplete-wrap'))
+    document.getElementById('estab-suggestions').style.display = 'none';
+});
+
+// ══════════════════════════════════════════════
+//  PARSERS QR CODE
+// ══════════════════════════════════════════════
+function detectTipo(txt) {
+  if (txt.startsWith('http')) return 'nfce';
+  if (txt.includes('|'))      return 'sat';
+  if (/^\d{44}/.test(txt))    return 'nfce';
+  return 'desconhecido';
+}
+function parseNFCe(txt) {
+  let chave = null;
+  try {
+    if (txt.startsWith('http')) {
+      const url = new URL(txt);
+      chave = url.searchParams.get('chNFe') || url.searchParams.get('chave');
+    }
+    if (!chave) { const m = txt.match(/\d{44}/); chave = m?.[0]; }
+    if (!chave || chave.length !== 44) return null;
+    return { tipo:'NFC-e', chave, cnpj:chave.slice(6,20), valor:null,
+             data: new Date().toISOString().split('T')[0] };
+  } catch(e) { return null; }
+}
+function parseSAT(txt) {
+  try {
+    const c = txt.trim().split('|');
+    const chave = c[0].trim();
+    if (chave.length !== 44) return null;
+    const v = parseFloat((c[2]||'0').replace(/R\$|rs|\s/gi,'').replace(',','.')) || 0;
+    const d = c[1] || '';
+    return { tipo:'SAT', chave, cnpj:chave.slice(6,20), valor:v,
+             data: d.length===8 ? `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}` : new Date().toISOString().split('T')[0] };
+  } catch(e) { return null; }
+}
+
+// ══════════════════════════════════════════════
+//  UI HELPERS
+// ══════════════════════════════════════════════
+function setStatus(tipo, txt) {
+  const bar = document.getElementById('status-bar');
+  bar.className = 's-' + tipo;
+  const ico = tipo==='proc' ? '<div class="s-spin"></div>'
+            : tipo==='ok'   ? '✅'
+            : tipo==='err'  ? '❌'
+            : tipo==='dup'  ? '⚠'
+            :                 '📷';
+  bar.innerHTML = `${ico}<span>${txt}</span>`;
+}
+
+function mostrarModalOK(d) {
+  document.getElementById('modal-ok-body').innerHTML = `
+    <div class="alerta al-v" style="margin-bottom:14px">✅ Nota enviada ao robô NFP com sucesso!</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.84rem">
+      <div style="background:var(--cl);border-radius:8px;padding:10px">
+        <div style="font-size:0.7rem;font-weight:700;color:var(--cm);text-transform:uppercase;margin-bottom:3px">CNPJ</div>
+        <div style="font-family:'DM Mono',monospace;font-size:0.78rem">${fmtCNPJ(d.cnpj||'')}</div>
+      </div>
+      <div style="background:var(--cl);border-radius:8px;padding:10px">
+        <div style="font-size:0.7rem;font-weight:700;color:var(--cm);text-transform:uppercase;margin-bottom:3px">Valor</div>
+        <div style="font-family:'Lora',serif;font-size:1.05rem;color:var(--v)">R$ ${Number(d.valor||0).toFixed(2)}</div>
+      </div>
+      ${d.coo ? `<div style="background:var(--cl);border-radius:8px;padding:10px">
+        <div style="font-size:0.7rem;font-weight:700;color:var(--cm);text-transform:uppercase;margin-bottom:3px">COO</div>
+        <div style="font-family:'DM Mono',monospace;font-size:0.78rem">${d.coo}</div>
+      </div>` : ''}
+      <div style="background:var(--cl);border-radius:8px;padding:10px">
+        <div style="font-size:0.7rem;font-weight:700;color:var(--cm);text-transform:uppercase;margin-bottom:3px">Origem</div>
+        <div>${d.origem==='imagem'?'📸 Imagem IA':d.origem==='manual'?'⌨️ Manual':'📷 QR Code'}</div>
+      </div>
+    </div>`;
+  openModal('modal-ok');
+}
+
+function adicionarHist(d) {
+  APP.historico.unshift(d);
+}
+
+function renderHistorico() {
+  const el = document.getElementById('hist-lista');
+  if (!APP.historico.length) {
+    el.innerHTML = '<div style="text-align:center;padding:24px 0;color:#ccc;font-size:0.83rem">Nenhuma nota ainda</div>';
+    return;
+  }
+  el.innerHTML = APP.historico.slice(0,60).map(h => {
+    const ok = h.status === 'ok';
+    const orig = h.origem==='imagem'?'📸':h.origem==='manual'?'⌨️':'📷';
+    return `<div class="hist-item">
+      <div class="hist-ico ${ok?'hi-ok':'hi-er'}">${ok?'✅':'❌'}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:0.83rem">${h.nome_emitente||fmtCNPJ(h.cnpj)}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:0.7rem;color:var(--cm)">${(h.chave||'').slice(0,22)}${h.chave?.length>22?'...':''}</div>
+        <div style="font-size:0.7rem;color:#bbb">${orig} ${h.hora||''} ${h.coo?'· COO '+h.coo:''}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        ${h.valor ? `<div style="font-family:'Lora',serif;font-size:0.95rem;color:var(--v)">R$ ${Number(h.valor).toFixed(2)}</div>` : ''}
+        <span class="tag ${ok?'t-v':'t-r'}" style="margin-top:3px">${ok?'OK':'Erro'}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function atualizarCnt() {
+  const c = APP.contadores;
+  document.getElementById('cnt-t').textContent  = c.t;
+  document.getElementById('cnt-ok').textContent = c.ok;
+  document.getElementById('cnt-d').textContent  = c.d;
+  document.getElementById('cnt-e').textContent  = c.e;
+}
+
+function atualizarBadge() {
+  document.getElementById('badge-estab').textContent = APP.estabelecimentos.length;
+}
+
+function exportarCSV() {
+  if (!APP.historico.length) { alert('Sem dados.'); return; }
+  const h = 'origem,chave,cnpj,nome,valor,data,coo,status,hora';
+  const r = APP.historico.map(x =>
+    [x.origem,x.chave,x.cnpj,x.nome_emitente,x.valor,x.data,x.coo,x.status,x.hora].join(',')
+  );
+  const b = new Blob([h+'\n'+r.join('\n')], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b);
+  a.download = 'notas_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+// ── Máscaras ──
+function maskCNPJ(el) {
+  let v = el.value.replace(/\D/g,'').slice(0,14);
+  v = v.replace(/^(\d{2})(\d)/,'$1.$2')
+       .replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3')
+       .replace(/\.(\d{3})(\d)/,'.$1/$2')
+       .replace(/(\d{4})(\d)/,'$1-$2');
+  el.value = v;
+}
+
+function fmtCNPJ(c='') {
+  const d = c.replace(/\D/g,'');
+  if (d.length !== 14) return c;
+  return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12)}`;
+}
+
+function horaAtual() {
+  return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+carregar();
+atualizarCnt();
+atualizarBadge();
+renderEstabs();
+initColab();
+
+// Preenche entidade do backend (Jinja2)
+const EN = "{{ entidade_nome }}";
+const EC = "{{ entidade_cnpj }}";
+if (EN && !EN.includes('{' + '{')) {
+  document.getElementById('ent-nome-s').textContent = EN;
+  document.getElementById('ent-cnpj-s').textContent = 'CNPJ: ' + EC;
+  document.getElementById('hdr-entidade').textContent = EN;
+}
+
+// Define data de hoje como padrão
+document.getElementById('m-data').valueAsDate = new Date();
+</script>
+</body>
+</html>

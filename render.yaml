@@ -1,0 +1,47 @@
+# Render Blueprint — AbrigoQR v4
+# Sobe num click: https://render.com/deploy
+#
+# Cria:
+#   • Web service Python (FastAPI/uvicorn) no plano free
+#   • Postgres free (90 dias, depois precisa renovar)
+#   • RPA_TOKEN gerado automaticamente
+#
+# Apos o deploy, no dashboard do Render preencha:
+#   ANTHROPIC_API_KEY, ENTIDADE_NOME, ENTIDADE_CNPJ, ENTIDADE_LABEL
+#
+# E copie o RPA_TOKEN gerado pra usar no local_rpa_worker.py local.
+
+services:
+  - type: web
+    name: abrigoqr-backend
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: "pip install -r requirements-cloud.txt"
+    startCommand: "uvicorn app:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /api/status
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: abrigoqr-db
+          property: connectionString
+      - key: RPA_TOKEN
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ENTIDADE_NOME
+        sync: false
+      - key: ENTIDADE_CNPJ
+        sync: false
+      - key: ENTIDADE_LABEL
+        sync: false
+
+databases:
+  - name: abrigoqr-db
+    plan: free
+    databaseName: abrigoqr
+    user: abrigoqr

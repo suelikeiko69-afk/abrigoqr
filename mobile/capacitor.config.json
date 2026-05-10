@@ -1,0 +1,16 @@
+{
+  "appId": "br.org.abrigoqr.app",
+  "appName": "AbrigoQR",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "always"
+  },
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https",
+    "cleartext": false
+  }
+}

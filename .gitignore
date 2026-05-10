@@ -1,0 +1,49 @@
+# Secrets
+.env
+*.keystore
+!debug.keystore
+
+# Banco
+*.db
+*.db-journal
+
+# Sessao do RPA (cookies do gov.br)
+sessao_nfp/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+
+# Editores
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Arquivos de debug/scratch
+fix*.py
+check.py
+app_readable.txt
+
+# Capacitor / Node
+mobile/node_modules/
+mobile/android/app/build/
+mobile/android/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/app/release/
+mobile/ios/App/Pods/
+mobile/ios/App/build/
+mobile/ios/DerivedData/
+
+# Build outputs
+*.apk
+*.aab
+*.ipa

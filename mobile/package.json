@@ -1,0 +1,22 @@
+{
+  "name": "abrigoqr-mobile",
+  "version": "4.0.0",
+  "description": "AbrigoQR - app mobile (Capacitor) para Android e iOS",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "sync": "cap sync",
+    "android": "cap open android",
+    "ios": "cap open ios",
+    "build:android:debug": "cap sync android && cd android && gradlew.bat assembleDebug && cd ..",
+    "build:android:release": "cap sync android && cd android && gradlew.bat assembleRelease && cd .."
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.3",
+    "@capacitor/core": "^8.3.3",
+    "@capacitor/ios": "^8.3.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.3.3"
+  }
+}

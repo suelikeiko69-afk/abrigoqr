@@ -794,6 +794,25 @@
 
 <script>
 // ══════════════════════════════════════════════
+//  ERROR HANDLER GLOBAL — exibe erros JS na UI
+//  (em vez de morrer em silencio no WebView)
+// ══════════════════════════════════════════════
+window.addEventListener('error', (e) => {
+  try {
+    const s = document.getElementById('status-msg');
+    if (s) s.textContent = '⚠ JS erro: ' + (e.message || e.error?.message || 'unknown');
+    console.error('[JS ERROR]', e.error || e.message);
+  } catch (_) {}
+});
+window.addEventListener('unhandledrejection', (e) => {
+  try {
+    const s = document.getElementById('status-msg');
+    if (s) s.textContent = '⚠ Promise rej: ' + (e.reason?.message || e.reason || 'unknown');
+    console.error('[PROMISE REJ]', e.reason);
+  } catch (_) {}
+});
+
+// ══════════════════════════════════════════════
 //  ESTADO GLOBAL
 // ══════════════════════════════════════════════
 const APP = {
@@ -851,14 +870,52 @@ function initColab() {
 //  TABS
 // ══════════════════════════════════════════════
 function showTab(id) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
-  const ids = ['scanner','imagem','manual','historico'];
-  document.querySelectorAll('.tab')[ids.indexOf(id)].classList.add('on');
-  document.getElementById('panel-' + id).classList.add('on');
-  if (id === 'manual')    renderEstabs();
-  if (id === 'historico') renderHistorico();
+  try {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+    const ids = ['scanner','imagem','manual','historico'];
+    const idx = ids.indexOf(id);
+    const tabEl = document.querySelectorAll('.tab')[idx];
+    const panel = document.getElementById('panel-' + id);
+    if (tabEl) tabEl.classList.add('on');
+    if (panel) panel.classList.add('on');
+    if (id !== 'scanner') { try { pararCamera(); } catch(_){} }
+    if (id === 'manual')    renderEstabs();
+    if (id === 'historico') renderHistorico();
+  } catch (e) {
+    console.error('showTab error:', e);
+    const s = document.getElementById('status-msg');
+    if (s) s.textContent = '⚠ Erro ao trocar aba: ' + e.message;
+  }
 }
+window.showTab = showTab;  // garante escopo global mesmo em WebView estrito
+
+// Wire-up via addEventListener (fallback caso onclick inline nao dispare em WebView)
+function _wireUI() {
+  const ids = ['scanner','imagem','manual','historico'];
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const tabId = ids[i];
+    if (!tabId || t.dataset.wired) return;
+    t.dataset.wired = '1';
+    const handler = (ev) => { ev.preventDefault(); ev.stopPropagation(); showTab(tabId); };
+    t.addEventListener('click',    handler);
+    t.addEventListener('touchend', handler);
+    t.style.touchAction = 'manipulation';
+  });
+  // Botao da camera
+  const camBtn = document.getElementById('btn-cam');
+  if (camBtn && !camBtn.dataset.wired) {
+    camBtn.dataset.wired = '1';
+    camBtn.addEventListener('click', (ev) => { ev.preventDefault(); iniciarCamera(); });
+  }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _wireUI);
+} else {
+  _wireUI();
+}
+window.iniciarCamera = iniciarCamera;
+window.pararCamera   = pararCamera;
 
 // ══════════════════════════════════════════════
 //  MODAIS
@@ -874,21 +931,31 @@ document.querySelectorAll('.modal-bg').forEach(bg =>
 // ══════════════════════════════════════════════
 async function iniciarCamera() {
   const btn = document.getElementById('btn-cam');
-  document.getElementById('btn-cam-txt').textContent = 'Solicitando permissão...';
+  const btnTxt = document.getElementById('btn-cam-txt');
+  btnTxt.textContent = 'Solicitando permissão...';
   btn.disabled = true;
   setStatus('proc', '🔐 Aguardando autorização da câmera...');
 
+  // Verifica se a lib do scanner carregou
+  if (typeof Html5Qrcode === 'undefined') {
+    btn.disabled = false;
+    btnTxt.textContent = 'Autorizar câmera e escanear';
+    setStatus('err', '❌ html5-qrcode não carregou (CDN bloqueado?)');
+    return;
+  }
+
+  // Pede permissao explicita ao SO antes de tentar enumerar cameras
   try {
     const ts = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } });
     ts.getTracks().forEach(t => t.stop());
   } catch(err) {
     btn.disabled = false;
-    document.getElementById('btn-cam-txt').textContent = 'Autorizar câmera e escanear';
-    if (err.name === 'NotAllowedError') {
+    btnTxt.textContent = 'Autorizar câmera e escanear';
+    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
       document.getElementById('perm-neg').style.display = 'block';
-      setStatus('err', '🚫 Permissão negada');
+      setStatus('err', '🚫 Permissão de câmera negada — autorize em Configurações');
     } else {
-      setStatus('err', '❌ ' + err.message);
+      setStatus('err', '❌ getUserMedia: ' + err.name + ' — ' + err.message);
     }
     return;
   }
@@ -900,16 +967,54 @@ async function iniciarCamera() {
   APP.scanner = new Html5Qrcode('reader');
   APP.scanAtivo = true;
 
+  // Tentativa 1: enumera cameras e usa a traseira por deviceId
+  // (mais confiavel em Capacitor WebView que `facingMode`)
+  let started = false;
   try {
-    await APP.scanner.start(
-      { facingMode:'environment' },
-      { fps:12, qrbox:{width:230,height:230}, aspectRatio:1.33 },
-      onQR, () => {}
-    );
-  } catch(e) {
-    setStatus('err', '❌ Erro ao iniciar scanner: ' + e);
-    document.getElementById('perm-box').style.display = 'block';
-    document.getElementById('scan-box').style.display = 'none';
+    const cams = await Html5Qrcode.getCameras();
+    if (cams && cams.length) {
+      // Procura camera traseira pelo label
+      const back = cams.find(c => /back|traseir|environment|rear/i.test(c.label)) || cams[cams.length - 1];
+      await APP.scanner.start(
+        back.id,
+        { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1.33, disableFlip: false },
+        onQR,
+        () => {}
+      );
+      started = true;
+    }
+  } catch (e) {
+    console.warn('Start by deviceId falhou, tentando facingMode:', e);
+  }
+
+  // Tentativa 2 (fallback): facingMode environment
+  if (!started) {
+    try {
+      await APP.scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1.33 },
+        onQR,
+        () => {}
+      );
+      started = true;
+    } catch (e) {
+      // Tentativa 3 (ultimo recurso): qualquer camera
+      try {
+        await APP.scanner.start(
+          { facingMode: 'user' },
+          { fps: 10, qrbox: { width: 240, height: 240 } },
+          onQR,
+          () => {}
+        );
+        started = true;
+        setStatus('proc', '📷 Usando câmera frontal (traseira indisponível)');
+      } catch (e2) {
+        setStatus('err', '❌ Não foi possível iniciar a câmera: ' + e2.message);
+        document.getElementById('perm-box').style.display = 'block';
+        document.getElementById('scan-box').style.display = 'none';
+        APP.scanAtivo = false;
+      }
+    }
   }
 }
 

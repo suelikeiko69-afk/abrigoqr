@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AbrigoQR — Checklist de Deploy</title>
+<style>
+  :root {
+    --v:    #0A5C45;
+    --vm:   #0F7A5C;
+    --vl:   #D6F0E8;
+    --vxl:  #EDFAF5;
+    --vd:   #063D2E;
+    --bg:   #F5F1E8;
+    --txt:  #2A2A2A;
+    --gray: #6B6B6B;
+    --ok:   #16a34a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--txt);
+    line-height: 1.5;
+    padding: 24px 16px 80px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  header {
+    background: var(--v);
+    color: white;
+    border-radius: 16px;
+    padding: 24px 28px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 16px rgba(10,92,69,.15);
+  }
+  header h1 {
+    margin: 0 0 6px;
+    font-size: 24px;
+    font-weight: 700;
+  }
+  header p {
+    margin: 0;
+    opacity: .9;
+    font-size: 14px;
+  }
+  .progress-bar {
+    margin-top: 16px;
+    background: rgba(255,255,255,.2);
+    border-radius: 999px;
+    height: 10px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: #FFD66B;
+    transition: width .3s ease;
+    border-radius: 999px;
+  }
+  .progress-text {
+    margin-top: 8px;
+    font-size: 13px;
+    opacity: .9;
+    display: flex;
+    justify-content: space-between;
+  }
+  .step {
+    background: white;
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin-bottom: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.04);
+    border-left: 4px solid var(--vl);
+    transition: border-color .2s;
+  }
+  .step.done {
+    border-left-color: var(--ok);
+    background: var(--vxl);
+  }
+  .step-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .step-head input[type=checkbox] {
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    border: 2px solid var(--gray);
+    border-radius: 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+    position: relative;
+    margin: 0;
+  }
+  .step-head input[type=checkbox]:checked {
+    background: var(--ok);
+    border-color: var(--ok);
+  }
+  .step-head input[type=checkbox]:checked::after {
+    content: '';
+    position: absolute;
+    left: 6px; top: 2px;
+    width: 6px; height: 11px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  .step-title {
+    flex: 1;
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .step.done .step-title { text-decoration: line-through; color: var(--gray); }
+  .step-time {
+    font-size: 12px;
+    color: var(--gray);
+    background: var(--vl);
+    padding: 3px 10px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+  .step-body {
+    margin-top: 12px;
+    padding-left: 34px;
+    font-size: 14px;
+    color: #444;
+  }
+  .step-body code, .step-body pre {
+    font-family: "SF Mono", Consolas, "DM Mono", monospace;
+    background: #f3f0e6;
+    border-radius: 4px;
+  }
+  .step-body code { padding: 1px 6px; font-size: 13px; }
+  .step-body pre {
+    padding: 10px 14px;
+    overflow-x: auto;
+    margin: 8px 0;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .step-body a { color: var(--v); }
+  .phase-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--vd);
+    margin: 24px 0 8px;
+    padding-left: 4px;
+  }
+  footer {
+    margin-top: 32px;
+    text-align: center;
+    color: var(--gray);
+    font-size: 13px;
+  }
+  .reset-btn {
+    background: transparent;
+    border: 1px solid var(--gray);
+    color: var(--gray);
+    padding: 6px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 12px;
+    margin-top: 8px;
+  }
+  .reset-btn:hover { background: var(--gray); color: white; }
+  .celebrate {
+    background: linear-gradient(135deg, #FFD66B, #FFB800);
+    color: var(--vd);
+    text-align: center;
+    padding: 20px;
+    border-radius: 12px;
+    margin: 16px 0;
+    display: none;
+    font-weight: 600;
+    font-size: 16px;
+  }
+  .celebrate.show { display: block; animation: pop .5s ease; }
+  @keyframes pop {
+    0% { transform: scale(.95); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header>
+  <h1>🌿 AbrigoQR — Checklist de Deploy</h1>
+  <p>Acompanhamento visual. Marca cada item conforme avança — fica salvo no navegador.</p>
+  <div class="progress-bar"><div class="progress-fill" id="bar" style="width:0%"></div></div>
+  <div class="progress-text">
+    <span id="prog-text">0 de 0 — começando</span>
+    <span id="time-est">~30 min</span>
+  </div>
+</header>
+
+<div class="celebrate" id="celebrate">
+  🎉 Tudo pronto! AbrigoQR está no ar. Bora ver as primeiras notas chegarem.
+</div>
+
+<!-- Steps gerados via JS -->
+<div id="steps"></div>
+
+<footer>
+  <button class="reset-btn" onclick="reset()">Resetar progresso</button>
+  <p style="margin-top:12px">Detalhes em <a href="DEPLOY_GUIA_COMPLETO.md">DEPLOY_GUIA_COMPLETO.md</a> · Erros em <a href="TROUBLESHOOTING.md">TROUBLESHOOTING.md</a></p>
+</footer>
+
+</div>
+
+<script>
+const STEPS = [
+  { phase: "Setup local", time: "5 min", items: [
+    { id: "clone",     title: "Clonar o repositório",
+      body: `<pre>git clone https://github.com/suelikeiko69-afk/abrigoqr.git
+cd abrigoqr</pre>` },
+    { id: "env",       title: "Copiar e configurar <code>.env</code>",
+      body: `<pre>cp .env.exemplo .env</pre>
+Edite <code>.env</code> e preencha <code>ANTHROPIC_API_KEY</code>.` },
+    { id: "deps",      title: "Instalar dependências Python",
+      body: `<pre>pip install -r requirements.txt
+playwright install chromium</pre>` },
+    { id: "validate",  title: "Rodar diagnóstico",
+      body: `<pre>python validate_setup.py</pre>
+Deve mostrar <strong>TUDO OK!</strong>.` },
+  ]},
+  { phase: "Deploy do backend (Render)", time: "5 min", items: [
+    { id: "render-login", title: "Logar no Render com sua conta GitHub",
+      body: `<a href="https://render.com" target="_blank">https://render.com</a>` },
+    { id: "render-blueprint", title: "New → Blueprint → cole o repo",
+      body: `URL: <code>https://github.com/suelikeiko69-afk/abrigoqr</code><br>
+Render vai ler <code>render.yaml</code> automaticamente.` },
+    { id: "render-vars", title: "Preencher variáveis de ambiente",
+      body: `<ul>
+<li><code>ANTHROPIC_API_KEY</code></li>
+<li><code>ENTIDADE_NOME</code> = Casa de Amparo Para Idosos Bom Pastor</li>
+<li><code>ENTIDADE_CNPJ</code> = 05895268000152</li>
+<li><code>ENTIDADE_LABEL</code> = CASA DE AMPARO PARA IDOSOS BOM PASTOR</li>
+</ul>` },
+    { id: "render-apply", title: "Apply (Render builda Postgres + serviço)",
+      body: `Aguarde ~3 min. Anote a URL pública e copie o <code>RPA_TOKEN</code> gerado.` },
+    { id: "render-test", title: "Testar /api/status",
+      body: `<pre>curl https://SEU-APP.onrender.com/api/status</pre>
+Deve retornar <code>{"status":"ok",...}</code>.` },
+  ]},
+  { phase: "App mobile (Android)", time: "5 min", items: [
+    { id: "config-js",     title: "Atualizar <code>mobile/www/config.js</code>",
+      body: `Troque <code>localhost:8000</code> pela URL do Render.` },
+    { id: "git-push",      title: "Commit + push (dispara GitHub Actions)",
+      body: `<pre>git add mobile/www/config.js
+git commit -m "chore: apontar app para Render"
+git push</pre>` },
+    { id: "actions-wait",  title: "Aguardar Action verde (~6 min)",
+      body: `<a href="https://github.com/suelikeiko69-afk/abrigoqr/actions" target="_blank">github.com/.../actions</a>` },
+    { id: "download-apk",  title: "Baixar artifact <code>abrigoqr-debug-apk</code>",
+      body: `Última run → Artifacts → ZIP com <code>app-debug.apk</code>.` },
+    { id: "install-apk",   title: "Instalar APK no celular",
+      body: `Transfere via USB/Drive/WhatsApp e abre. Habilita "fonte desconhecida" se pedir.` },
+  ]},
+  { phase: "RPA local", time: "5 min", items: [
+    { id: "env-cloud",     title: "Atualizar <code>.env</code> com URL do Render + token",
+      body: `<pre>CLOUD_API_URL=https://SEU-APP.onrender.com
+RPA_TOKEN=token-gerado-pelo-render
+POLL_INTERVAL=60</pre>` },
+    { id: "worker-start",  title: "Rodar o worker",
+      body: `<pre>python local_rpa_worker.py</pre>
+Primeira vez: faz login no portal NFP no Chromium aberto.` },
+    { id: "worker-check",  title: "Confirmar conexão",
+      body: `Log deve mostrar <code>Backend status: ok v4.0.0</code>.` },
+  ]},
+  { phase: "Teste integrado", time: "5 min", items: [
+    { id: "test-manual",   title: "No app, lançar uma nota teste pela aba Manual",
+      body: `Use chave fake: <code>35240101234567000189590010000000011000000099</code>` },
+    { id: "test-rpa",      title: "Worker logar processamento da nota",
+      body: `Em até 60s deve aparecer <code>📥 1 nota(s) pendente(s)</code> e <code>✅ id=1 concluida</code>.` },
+    { id: "test-historico", title: "Conferir status no Histórico do app",
+      body: `Aba Histórico → nota deve aparecer ✅.` },
+  ]},
+];
+
+const KEY = "abrigoqr-checklist-v1";
+const state = JSON.parse(localStorage.getItem(KEY) || "{}");
+
+function render() {
+  const root = document.getElementById("steps");
+  root.innerHTML = "";
+  let total = 0, done = 0;
+
+  STEPS.forEach(phase => {
+    const h = document.createElement("div");
+    h.className = "phase-title";
+    h.textContent = `${phase.phase} (${phase.time})`;
+    root.appendChild(h);
+
+    phase.items.forEach(item => {
+      total++;
+      const isDone = !!state[item.id];
+      if (isDone) done++;
+
+      const div = document.createElement("div");
+      div.className = "step" + (isDone ? " done" : "");
+      div.innerHTML = `
+        <label class="step-head">
+          <input type="checkbox" ${isDone ? "checked" : ""}>
+          <span class="step-title">${item.title}</span>
+          <span class="step-time">${phase.time}</span>
+        </label>
+        <div class="step-body">${item.body}</div>
+      `;
+      div.querySelector("input").addEventListener("change", e => {
+        state[item.id] = e.target.checked;
+        localStorage.setItem(KEY, JSON.stringify(state));
+        render();
+      });
+      root.appendChild(div);
+    });
+  });
+
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  document.getElementById("bar").style.width = pct + "%";
+  document.getElementById("prog-text").textContent = `${done} de ${total} — ${pct}%`;
+  document.getElementById("celebrate").classList.toggle("show", done === total && total > 0);
+}
+
+function reset() {
+  if (!confirm("Limpar todo o progresso?")) return;
+  localStorage.removeItem(KEY);
+  for (const k in state) delete state[k];
+  render();
+}
+
+render();
+</script>
+
+</body>
+</html>

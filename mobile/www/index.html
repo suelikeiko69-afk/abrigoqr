@@ -929,7 +929,73 @@ document.querySelectorAll('.modal-bg').forEach(bg =>
 // ══════════════════════════════════════════════
 //  SCANNER QR CODE
 // ══════════════════════════════════════════════
+// Scanner NATIVO via @capacitor-mlkit/barcode-scanning (ML Kit do Google).
+// Usado dentro do APK Capacitor — usa a camera nativa, foca QR densos muito
+// melhor que o decoder JS rodando em <video>+canvas no WebView.
+// Retorna true se conseguiu usar o caminho nativo, false caso contrario.
+async function iniciarCameraNativa() {
+  const Plugins = window.Capacitor && window.Capacitor.Plugins;
+  if (!Plugins || !Plugins.BarcodeScanner) return false;
+
+  const BS = Plugins.BarcodeScanner;
+  const btn = document.getElementById('btn-cam');
+  const btnTxt = document.getElementById('btn-cam-txt');
+
+  try {
+    // 1) ML Kit baixa o modulo do scanner sob demanda (Android)
+    try {
+      const { available } = await BS.isGoogleBarcodeScannerModuleAvailable();
+      if (!available) {
+        setStatus('proc', '⏬ Baixando módulo do scanner...');
+        await BS.installGoogleBarcodeScannerModule();
+      }
+    } catch(_) { /* iOS nao tem esse passo */ }
+
+    // 2) Permissoes
+    setStatus('proc', '🔐 Solicitando permissão da câmera...');
+    let perm = await BS.checkPermissions();
+    if (perm.camera !== 'granted' && perm.camera !== 'limited') {
+      perm = await BS.requestPermissions();
+    }
+    if (perm.camera !== 'granted' && perm.camera !== 'limited') {
+      document.getElementById('perm-neg').style.display = 'block';
+      setStatus('err', '🚫 Permissão de câmera negada');
+      btn.disabled = false;
+      btnTxt.textContent = 'Autorizar câmera e escanear';
+      return true;
+    }
+
+    // 3) Loop de scan: abre scanner -> processa -> reabre, ate cancelar
+    btn.disabled = true;
+    while (true) {
+      setStatus('proc', '📷 Abrindo scanner nativo...');
+      const { barcodes } = await BS.scan({ formats: ['QR_CODE'] });
+      if (!barcodes || barcodes.length === 0) {
+        setStatus('idle', '📷 Scanner fechado');
+        break;
+      }
+      APP.bloqueado = false;
+      await onQR(barcodes[0].rawValue || barcodes[0].displayValue || '');
+      // Pausa breve antes de reabrir
+      await new Promise(r => setTimeout(r, 1200));
+    }
+    btn.disabled = false;
+    btnTxt.textContent = 'Autorizar câmera e escanear';
+  } catch (e) {
+    console.error('Scanner nativo erro:', e);
+    setStatus('err', '❌ Scanner nativo: ' + (e.message || e));
+    btn.disabled = false;
+    btnTxt.textContent = 'Autorizar câmera e escanear';
+  }
+  return true;
+}
+
 async function iniciarCamera() {
+  // Caminho nativo (Capacitor APK)
+  const usedNative = await iniciarCameraNativa();
+  if (usedNative) return;
+
+  // Caminho web (browser / preview)
   const btn = document.getElementById('btn-cam');
   const btnTxt = document.getElementById('btn-cam-txt');
   btnTxt.textContent = 'Solicitando permissão...';

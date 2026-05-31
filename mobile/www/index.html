@@ -996,7 +996,7 @@ document.querySelectorAll('.modal-bg').forEach(bg =>
 // Identificador do build do JS — incrementar quando mexer no scanner.
 // Aparece na barra de status pra confirmar visualmente qual versao do
 // codigo esta rodando no APK.
-const SCANNER_BUILD = 'v5-skip-permcheck-2026.05.31';
+const SCANNER_BUILD = 'v6-resolution-fallback-2026.05.31';
 
 // Detecta se estamos rodando dentro do APK Capacitor (vs. browser comum)
 function _isCapacitor() {
@@ -1099,14 +1099,29 @@ async function _ativarScanNativo(BS) {
 
   setStatus('proc', '📷 Aponte para o QR Code');
   APP.scanAtivo = true;
-  // resolution 2 = 1920x1080 (HD padrao 1280x720 nao decodifica QR denso da NFC-e).
-  // Inclui DATA_MATRIX e AZTEC como fallback — alguns dispositivos
-  // Samsung/Motorola classificam QR denso como outro formato.
-  await BS.startScan({
+
+  // Fallback de resolucao automatico:
+  //   2 = 1920x1080 (melhor pra QR denso, mas alguns Samsung rejeitam o
+  //       stream duplo PREVIEW + IMAGE_ANALYSIS nessa resolucao com
+  //       IllegalArgumentException do CameraX)
+  //   1 = 1280x720 (compatibilidade universal, decodifica QR comum)
+  const startOpts = {
     formats: ['QR_CODE', 'DATA_MATRIX', 'AZTEC', 'PDF_417'],
     lensFacing: 'BACK',
-    resolution: 2,
-  });
+  };
+  try {
+    await BS.startScan({ ...startOpts, resolution: 2 });
+  } catch (e) {
+    const msg = e?.message || String(e);
+    // Erros de configuracao do CameraX -> tenta resolucao menor
+    if (/IllegalArgument|AttachedSurfaceInfo|configSize|surfaceInfo|surface combination/i.test(msg)) {
+      console.warn('1080p falhou no CameraX, caindo pra 720p:', msg.slice(0, 200));
+      setStatus('proc', '📷 Modo compatibilidade (HD)...');
+      await BS.startScan({ ...startOpts, resolution: 1 });
+    } else {
+      throw e;
+    }
+  }
 }
 
 async function _desativarScanNativo(BS) {

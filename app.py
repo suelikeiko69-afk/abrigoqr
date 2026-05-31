@@ -74,7 +74,7 @@ INSTALL_TAG    = os.getenv("INSTALL_TAG",  "latest")
 # "Nova versao disponivel - Atualizar" -> direciona pro /install/apk.
 # IMPORTANTE: atualizar este valor sempre que SCANNER_BUILD mudar em
 # mobile/www/index.html. Os dois precisam ficar sincronizados.
-LATEST_APP_BUILD = os.getenv("LATEST_APP_BUILD", "v5-skip-permcheck-2026.05.31")
+LATEST_APP_BUILD = os.getenv("LATEST_APP_BUILD", "v6-resolution-fallback-2026.05.31")
 
 # Render entrega "postgres://" mas SQLAlchemy 2.x exige "postgresql://"
 if DATABASE_URL.startswith("postgres://"):

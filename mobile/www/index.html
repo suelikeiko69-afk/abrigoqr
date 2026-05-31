@@ -502,9 +502,10 @@
         <!-- Permissão negada -->
         <div id="perm-neg" style="display:none;text-align:center;margin-top:10px">
           <div class="alerta al-r">
-            🚫 <strong>Câmera bloqueada.</strong> Toque no ícone 🔒 na barra de endereços → Permissões → Câmera → Permitir → recarregue.
+            <span class="msg-browser">🚫 <strong>Câmera bloqueada.</strong> Toque no ícone 🔒 na barra de endereços → Permissões → Câmera → Permitir → recarregue.</span>
+            <span class="msg-native" style="display:none">🚫 <strong>Câmera bloqueada.</strong><br>Vá em <strong>Configurações do Android → Apps → AbrigoQR → Permissões → Câmera</strong> e selecione <strong>"Permitir"</strong>. Depois toque em "Tentar novamente" abaixo.</span>
           </div>
-          <button class="btn-sec" onclick="location.reload()">🔄 Tentar novamente</button>
+          <button class="btn-sec" onclick="iniciarCamera()">🔄 Tentar novamente</button>
         </div>
       </div>
 
@@ -972,48 +973,92 @@ document.querySelectorAll('.modal-bg').forEach(bg =>
 // ══════════════════════════════════════════════
 //  SCANNER QR CODE
 // ══════════════════════════════════════════════
+// Detecta se estamos rodando dentro do APK Capacitor (vs. browser comum)
+function _isCapacitor() {
+  try {
+    if (window.Capacitor?.isNativePlatform) return window.Capacitor.isNativePlatform();
+    return !!(window.Capacitor && window.Capacitor.Plugins);
+  } catch(_) { return false; }
+}
+
+// Toggle das mensagens de permissao baseado em plataforma
+function _ajustaMensagemPermNeg() {
+  const browser = document.querySelector('#perm-neg .msg-browser');
+  const native  = document.querySelector('#perm-neg .msg-native');
+  if (!browser || !native) return;
+  if (_isCapacitor()) { browser.style.display = 'none'; native.style.display = 'block'; }
+  else                { browser.style.display = 'block'; native.style.display = 'none'; }
+}
+
 // Scanner NATIVO via @capacitor-mlkit/barcode-scanning (ML Kit do Google).
 // Padrao oficial "in-app": startScan() abre a camera nativa por baixo da
 // WebView (que fica transparente), e um overlay HTML mostra a mira + cancel.
-// Muito mais robusto que scan() (Google Code Scanner UI), que depende de um
-// modulo extra do Play Services que cancela na 1a chamada.
 async function iniciarCameraNativa() {
-  const Plugins = window.Capacitor && window.Capacitor.Plugins;
-  if (!Plugins || !Plugins.BarcodeScanner) return false;
+  _ajustaMensagemPermNeg();
 
-  const BS = Plugins.BarcodeScanner;
+  // Diagnostico visivel — pra debug rapido no APK do usuario
+  const hasCap     = !!window.Capacitor;
+  const isNative   = _isCapacitor();
+  const hasPlugins = !!(window.Capacitor && window.Capacitor.Plugins);
+  const hasBS      = !!(hasPlugins && window.Capacitor.Plugins.BarcodeScanner);
+
+  if (!hasCap) {
+    // Browser comum — cai pro fallback html5-qrcode
+    return false;
+  }
+  if (!hasBS) {
+    setStatus('err', `❌ Plugin BarcodeScanner ausente (cap=${hasCap}, native=${isNative}, plugins=${hasPlugins})`);
+    return true; // nao caia pro fallback web
+  }
+
+  const BS  = window.Capacitor.Plugins.BarcodeScanner;
   const btn = document.getElementById('btn-cam');
   const btnTxt = document.getElementById('btn-cam-txt');
 
   try {
-    // 1) Confere suporte
+    // 1) isSupported informativo
+    let supState = '?';
     try {
       const sup = await BS.isSupported();
+      supState = sup?.supported ? 'sim' : 'nao';
       if (sup && sup.supported === false) {
         setStatus('err', '❌ Scanner nativo não suportado neste dispositivo');
         return true;
       }
-    } catch(_) {}
+    } catch(e) { supState = 'erro: ' + (e.message||e); }
 
-    // 2) Permissoes
-    setStatus('proc', '🔐 Solicitando permissão da câmera...');
+    // 2) Permissoes — SEMPRE chama requestPermissions (workaround pro cache
+    //    do plugin apos reinstalar o APK: checkPermissions pode retornar
+    //    'denied' enquanto o SO ja concedeu)
+    setStatus('proc', `🔐 Verificando permissão (suporte: ${supState})...`);
     let perm = await BS.checkPermissions();
+    const checkResult = perm?.camera || 'undefined';
+
     if (perm.camera !== 'granted' && perm.camera !== 'limited') {
+      setStatus('proc', `🔐 Solicitando permissão (check: ${checkResult})...`);
       perm = await BS.requestPermissions();
     }
+
     if (perm.camera !== 'granted' && perm.camera !== 'limited') {
+      // Permissao realmente negada
       document.getElementById('perm-neg').style.display = 'block';
-      setStatus('err', '🚫 Permissão de câmera negada');
+      setStatus('err', `🚫 Permissão negada (check=${checkResult}, request=${perm?.camera})`);
       btn.disabled = false;
       btnTxt.textContent = 'Autorizar câmera e escanear';
       return true;
     }
 
     // 3) startScan: WebView transparente + listener de barcodes
+    setStatus('proc', '📷 Iniciando scanner nativo...');
     await _ativarScanNativo(BS);
   } catch (e) {
     console.error('Scanner nativo erro:', e);
-    setStatus('err', '❌ Scanner nativo: ' + (e.message || e));
+    const msg = e?.message || String(e);
+    setStatus('err', `❌ Scanner nativo: ${msg}`);
+    // Se o erro foi explicitamente de permissao, mostra o painel
+    if (/permission|denied|nao autorizado/i.test(msg)) {
+      document.getElementById('perm-neg').style.display = 'block';
+    }
     await _desativarScanNativo(BS);
     btn.disabled = false;
     btnTxt.textContent = 'Autorizar câmera e escanear';

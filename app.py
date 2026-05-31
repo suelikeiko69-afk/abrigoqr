@@ -477,6 +477,49 @@ async def atualizar_nota_status(
     return {"status": "ok"}
 
 
+CLAUDE_MODELS_TENTATIVA = [
+    os.getenv("CLAUDE_MODEL", "claude-sonnet-4-5"),
+    "claude-sonnet-4-5-20250929",
+    "claude-3-5-sonnet-latest",
+    "claude-3-5-sonnet-20241022",
+]
+
+
+# ── Diagnostico rapido da IA ────────────────────────────
+@app.get("/api/test-ia")
+async def test_ia():
+    """Endpoint de diagnostico: confere se ANTHROPIC_API_KEY funciona
+    e quais modelos respondem. Use no browser pra debugar."""
+    result = {
+        "anthropic_key_set":    bool(ANTHROPIC_KEY),
+        "anthropic_key_format": (ANTHROPIC_KEY[:7] + "..." + ANTHROPIC_KEY[-4:]) if ANTHROPIC_KEY else None,
+        "anthropic_key_len":    len(ANTHROPIC_KEY) if ANTHROPIC_KEY else 0,
+        "tentativas":           [],
+    }
+    if not ANTHROPIC_KEY:
+        result["erro"] = "ANTHROPIC_API_KEY nao configurada"
+        return result
+    client = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
+    for modelo in CLAUDE_MODELS_TENTATIVA:
+        tentativa = {"modelo": modelo}
+        try:
+            r = client.messages.create(
+                model=modelo, max_tokens=10,
+                messages=[{"role": "user", "content": "diga oi"}],
+            )
+            tentativa["ok"] = True
+            tentativa["resposta"] = r.content[0].text[:50] if r.content else ""
+            result["tentativas"].append(tentativa)
+            result["modelo_funcionando"] = modelo
+            break
+        except Exception as e:
+            tentativa["ok"]    = False
+            tentativa["tipo"]  = type(e).__name__
+            tentativa["erro"]  = str(e)[:300]
+            result["tentativas"].append(tentativa)
+    return result
+
+
 # ── Analisar imagem com IA ────────────────────────────────
 @app.post("/analisar-imagem")
 async def analisar_imagem(payload: ImagemPayload):
@@ -504,37 +547,72 @@ Retorne APENAS um objeto JSON válido com estes campos (sem markdown, sem ```jso
 Se algum campo não for legível, retorne string vazia para esse campo.
 Nunca invente dados. Retorne apenas o JSON."""
 
-    try:
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=800,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "image", "source": {
-                        "type": "base64",
-                        "media_type": payload.mime_type,
-                        "data": payload.imagem_base64,
-                    }},
-                    {"type": "text", "text": prompt},
-                ],
-            }],
-        )
-        raw = response.content[0].text.strip()
-        raw = re.sub(r"^```json\s*", "", raw, flags=re.MULTILINE)
-        raw = re.sub(r"\s*```$",      "", raw, flags=re.MULTILINE)
-        dados = json.loads(raw.strip())
-        log.info(
-            f"🤖 IA extraiu: CNPJ={dados.get('cnpj')} "
-            f"valor={dados.get('valor')} confiança={dados.get('confianca')}"
-        )
-        return dados
-    except json.JSONDecodeError as e:
-        log.error(f"❌ IA retornou JSON inválido: {raw[:200] if 'raw' in dir() else '?'}")
-        raise HTTPException(422, f"IA não conseguiu extrair dados estruturados: {e}")
-    except anthropic.APIError as e:
-        log.error(f"❌ Erro API Anthropic: {e}")
-        raise HTTPException(502, f"Erro na API de IA: {e}")
+    raw = ""
+    ultimo_erro = None
+    for modelo in CLAUDE_MODELS_TENTATIVA:
+        try:
+            response = client.messages.create(
+                model=modelo,
+                max_tokens=800,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "image", "source": {
+                            "type": "base64",
+                            "media_type": payload.mime_type,
+                            "data": payload.imagem_base64,
+                        }},
+                        {"type": "text", "text": prompt},
+                    ],
+                }],
+            )
+            raw = response.content[0].text.strip()
+            raw = re.sub(r"^```json\s*", "", raw, flags=re.MULTILINE)
+            raw = re.sub(r"\s*```$",      "", raw, flags=re.MULTILINE)
+            try:
+                dados = json.loads(raw.strip())
+            except json.JSONDecodeError as e:
+                log.error(f"❌ IA retornou JSON invalido (modelo {modelo}): {raw[:200]}")
+                raise HTTPException(422, f"IA nao estruturou os dados: {e}")
+            log.info(
+                f"🤖 IA ({modelo}) extraiu: CNPJ={dados.get('cnpj')} "
+                f"valor={dados.get('valor')} confianca={dados.get('confianca')}"
+            )
+            return dados
+        except anthropic.NotFoundError as e:
+            log.warning(f"⚠ Modelo {modelo} nao encontrado: {e}")
+            ultimo_erro = ("NotFoundError", modelo, str(e))
+            continue
+        except anthropic.AuthenticationError as e:
+            log.error(f"❌ ANTHROPIC_API_KEY invalida: {e}")
+            raise HTTPException(401, f"Chave Anthropic invalida: {str(e)[:200]}")
+        except anthropic.PermissionDeniedError as e:
+            log.error(f"❌ Permissao negada: {e}")
+            raise HTTPException(403, f"IA sem permissao: {str(e)[:200]}")
+        except anthropic.RateLimitError as e:
+            log.warning(f"⏱ Rate limit em {modelo}: {e}")
+            raise HTTPException(429, f"IA com rate limit: {str(e)[:200]}")
+        except anthropic.APIConnectionError as e:
+            log.error(f"❌ APIConnectionError em {modelo}: {e}")
+            ultimo_erro = ("APIConnectionError", modelo, str(e))
+            continue
+        except anthropic.APIError as e:
+            log.error(f"❌ APIError em {modelo}: type={type(e).__name__} msg={e}")
+            ultimo_erro = (type(e).__name__, modelo, str(e))
+            continue
+        except Exception as e:
+            log.error(f"❌ Erro inesperado em {modelo}: type={type(e).__name__} msg={e}")
+            ultimo_erro = (type(e).__name__, modelo, str(e))
+            continue
+
+    # Se chegou aqui, todos os modelos falharam
+    tipo, modelo, msg = ultimo_erro or ("Desconhecido", "?", "?")
+    raise HTTPException(
+        502,
+        f"IA falhou em todos os modelos. Ultimo erro: {tipo} no modelo '{modelo}'. "
+        f"Mensagem: {msg[:200]}. "
+        f"Verifique /api/test-ia para diagnostico."
+    )
 
 
 # ── CRUD Estabelecimentos ─────────────────────────────────

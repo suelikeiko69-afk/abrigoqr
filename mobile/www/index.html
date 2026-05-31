@@ -976,7 +976,7 @@ document.querySelectorAll('.modal-bg').forEach(bg =>
 // Identificador do build do JS — incrementar quando mexer no scanner.
 // Aparece na barra de status pra confirmar visualmente qual versao do
 // codigo esta rodando no APK.
-const SCANNER_BUILD = 'v3-startScan-2026.05.31';
+const SCANNER_BUILD = 'v4-1080p-2026.05.31';
 
 // Detecta se estamos rodando dentro do APK Capacitor (vs. browser comum)
 function _isCapacitor() {
@@ -1100,7 +1100,14 @@ async function _ativarScanNativo(BS) {
 
   setStatus('proc', '📷 Aponte para o QR Code');
   APP.scanAtivo = true;
-  await BS.startScan({ formats: ['QR_CODE'] });
+  // resolution 2 = 1920x1080 (HD padrao 1280x720 nao decodifica QR denso da NFC-e).
+  // Inclui DATA_MATRIX e AZTEC como fallback — alguns dispositivos
+  // Samsung/Motorola classificam QR denso como outro formato.
+  await BS.startScan({
+    formats: ['QR_CODE', 'DATA_MATRIX', 'AZTEC', 'PDF_417'],
+    lensFacing: 'BACK',
+    resolution: 2,
+  });
 }
 
 async function _desativarScanNativo(BS) {

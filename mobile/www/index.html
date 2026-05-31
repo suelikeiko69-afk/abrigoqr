@@ -94,6 +94,49 @@
     .hdr-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; animation: pulse 2s infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
+    /* ══ SCANNER NATIVO (Capacitor ML Kit) ══
+       Quando o startScan() roda, o body recebe esta classe.
+       A WebView fica TRANSPARENTE (mostra camera nativa por tras)
+       e o overlay #scan-overlay com a mira + cancel fica visivel. */
+    body.barcode-scanner-active { background: transparent !important; }
+    body.barcode-scanner-active > *:not(#scan-overlay) { visibility: hidden !important; }
+    #scan-overlay {
+      position: fixed; inset: 0; display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+      pointer-events: none; z-index: 9999;
+      background: transparent;
+    }
+    #scan-overlay .scan-frame {
+      width: min(74vw, 320px); aspect-ratio: 1;
+      border: 3px solid #fff; border-radius: 24px;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,.55);
+      position: relative;
+    }
+    #scan-overlay .scan-frame::before,
+    #scan-overlay .scan-frame::after,
+    #scan-overlay .scan-frame > i::before,
+    #scan-overlay .scan-frame > i::after {
+      content:""; position:absolute; width:36px; height:36px;
+      border: 4px solid #0A5C45; border-radius: 6px;
+    }
+    #scan-overlay .scan-frame::before    { top:-6px; left:-6px; border-right:0; border-bottom:0; }
+    #scan-overlay .scan-frame::after     { top:-6px; right:-6px; border-left:0; border-bottom:0; }
+    #scan-overlay .scan-frame > i::before{ bottom:-6px; left:-6px; border-right:0; border-top:0; }
+    #scan-overlay .scan-frame > i::after { bottom:-6px; right:-6px; border-left:0; border-top:0; }
+    #scan-overlay .scan-hint {
+      color:#fff; margin-top:22px; font-size:15px; font-weight:600;
+      background:rgba(0,0,0,.55); padding:10px 18px; border-radius:24px;
+      backdrop-filter: blur(6px);
+    }
+    #scan-overlay .scan-cancel {
+      position:fixed; bottom:42px; left:50%; transform:translateX(-50%);
+      pointer-events:auto; background:#fff; color:#0A5C45;
+      padding:14px 36px; border:none; border-radius:30px;
+      font-size:16px; font-weight:700;
+      box-shadow:0 6px 20px rgba(0,0,0,.35);
+    }
+    #scan-overlay .scan-cancel:active { transform:translateX(-50%) scale(.97); }
+
     /* ══ TAB NAV ══ */
     .tabs {
       background: var(--w); border-bottom: 1px solid var(--bd);
@@ -930,9 +973,10 @@ document.querySelectorAll('.modal-bg').forEach(bg =>
 //  SCANNER QR CODE
 // ══════════════════════════════════════════════
 // Scanner NATIVO via @capacitor-mlkit/barcode-scanning (ML Kit do Google).
-// Usado dentro do APK Capacitor — usa a camera nativa, foca QR densos muito
-// melhor que o decoder JS rodando em <video>+canvas no WebView.
-// Retorna true se conseguiu usar o caminho nativo, false caso contrario.
+// Padrao oficial "in-app": startScan() abre a camera nativa por baixo da
+// WebView (que fica transparente), e um overlay HTML mostra a mira + cancel.
+// Muito mais robusto que scan() (Google Code Scanner UI), que depende de um
+// modulo extra do Play Services que cancela na 1a chamada.
 async function iniciarCameraNativa() {
   const Plugins = window.Capacitor && window.Capacitor.Plugins;
   if (!Plugins || !Plugins.BarcodeScanner) return false;
@@ -942,14 +986,14 @@ async function iniciarCameraNativa() {
   const btnTxt = document.getElementById('btn-cam-txt');
 
   try {
-    // 1) ML Kit baixa o modulo do scanner sob demanda (Android)
+    // 1) Confere suporte
     try {
-      const { available } = await BS.isGoogleBarcodeScannerModuleAvailable();
-      if (!available) {
-        setStatus('proc', '⏬ Baixando módulo do scanner...');
-        await BS.installGoogleBarcodeScannerModule();
+      const sup = await BS.isSupported();
+      if (sup && sup.supported === false) {
+        setStatus('err', '❌ Scanner nativo não suportado neste dispositivo');
+        return true;
       }
-    } catch(_) { /* iOS nao tem esse passo */ }
+    } catch(_) {}
 
     // 2) Permissoes
     setStatus('proc', '🔐 Solicitando permissão da câmera...');
@@ -965,30 +1009,69 @@ async function iniciarCameraNativa() {
       return true;
     }
 
-    // 3) Loop de scan: abre scanner -> processa -> reabre, ate cancelar
-    btn.disabled = true;
-    while (true) {
-      setStatus('proc', '📷 Abrindo scanner nativo...');
-      const { barcodes } = await BS.scan({ formats: ['QR_CODE'] });
-      if (!barcodes || barcodes.length === 0) {
-        setStatus('idle', '📷 Scanner fechado');
-        break;
-      }
-      APP.bloqueado = false;
-      await onQR(barcodes[0].rawValue || barcodes[0].displayValue || '');
-      // Pausa breve antes de reabrir
-      await new Promise(r => setTimeout(r, 1200));
-    }
-    btn.disabled = false;
-    btnTxt.textContent = 'Autorizar câmera e escanear';
+    // 3) startScan: WebView transparente + listener de barcodes
+    await _ativarScanNativo(BS);
   } catch (e) {
     console.error('Scanner nativo erro:', e);
     setStatus('err', '❌ Scanner nativo: ' + (e.message || e));
+    await _desativarScanNativo(BS);
     btn.disabled = false;
     btnTxt.textContent = 'Autorizar câmera e escanear';
   }
   return true;
 }
+
+async function _ativarScanNativo(BS) {
+  if (!BS) BS = window.Capacitor?.Plugins?.BarcodeScanner;
+  if (!BS) return;
+  // Marca body para CSS ativar transparencia
+  document.body.classList.add('barcode-scanner-active');
+  const overlay = document.getElementById('scan-overlay');
+  if (overlay) overlay.style.display = 'flex';
+
+  // Remove listener anterior se existir
+  if (APP._scanListener) {
+    try { await APP._scanListener.remove(); } catch(_) {}
+    APP._scanListener = null;
+  }
+
+  APP._scanListener = await BS.addListener('barcodeScanned', async (ev) => {
+    const code = ev.barcode?.rawValue || ev.barcode?.displayValue || '';
+    if (!code || APP.bloqueado) return;
+    APP.bloqueado = true;
+    // Para o scanner imediatamente para o modal/confirmacao ficar visivel
+    await _desativarScanNativo(BS);
+    if (navigator.vibrate) try { navigator.vibrate(40); } catch(_){}
+    await onQR(code);
+  });
+
+  setStatus('proc', '📷 Aponte para o QR Code');
+  APP.scanAtivo = true;
+  await BS.startScan({ formats: ['QR_CODE'] });
+}
+
+async function _desativarScanNativo(BS) {
+  if (!BS) BS = window.Capacitor?.Plugins?.BarcodeScanner;
+  APP.scanAtivo = false;
+  if (BS) {
+    try { await BS.stopScan(); } catch(_) {}
+    try { await BS.removeAllListeners(); } catch(_) {}
+  }
+  if (APP._scanListener) {
+    try { await APP._scanListener.remove(); } catch(_) {}
+    APP._scanListener = null;
+  }
+  document.body.classList.remove('barcode-scanner-active');
+  const overlay = document.getElementById('scan-overlay');
+  if (overlay) overlay.style.display = 'none';
+  const btn = document.getElementById('btn-cam');
+  const btnTxt = document.getElementById('btn-cam-txt');
+  if (btn) btn.disabled = false;
+  if (btnTxt) btnTxt.textContent = 'Autorizar câmera e escanear';
+}
+
+// Expoe pro overlay e abas chamarem
+window._desativarScanNativo = _desativarScanNativo;
 
 async function iniciarCamera() {
   // Caminho nativo (Capacitor APK)
@@ -1085,14 +1168,23 @@ async function iniciarCamera() {
 }
 
 async function pararCamera() {
+  // Para o scanner nativo se estiver ativo (no APK)
+  if (document.body.classList.contains('barcode-scanner-active')) {
+    await _desativarScanNativo();
+  }
+  // E o html5-qrcode tambem (no browser)
   if (APP.scanner && APP.scanAtivo) {
     try { await APP.scanner.stop(); } catch(e) {}
     APP.scanAtivo = false;
   }
-  document.getElementById('perm-box').style.display = 'block';
-  document.getElementById('scan-box').style.display = 'none';
-  document.getElementById('btn-cam').disabled = false;
-  document.getElementById('btn-cam-txt').textContent = 'Autorizar câmera e escanear';
+  const permBox = document.getElementById('perm-box');
+  const scanBox = document.getElementById('scan-box');
+  if (permBox) permBox.style.display = 'block';
+  if (scanBox) scanBox.style.display = 'none';
+  const btn = document.getElementById('btn-cam');
+  const btnTxt = document.getElementById('btn-cam-txt');
+  if (btn) btn.disabled = false;
+  if (btnTxt) btnTxt.textContent = 'Autorizar câmera e escanear';
   setStatus('idle', '📷 Câmera desligada');
 }
 
@@ -1638,5 +1730,13 @@ fetch(apiUrl('/api/config'))
 // Define data de hoje como padrão
 document.getElementById('m-data').valueAsDate = new Date();
 </script>
+
+<!-- Overlay do scanner nativo (visivel apenas quando body.barcode-scanner-active) -->
+<div id="scan-overlay">
+  <div class="scan-frame"><i></i></div>
+  <div class="scan-hint">Aponte para o QR Code</div>
+  <button class="scan-cancel" type="button" onclick="_desativarScanNativo()">Cancelar</button>
+</div>
+
 </body>
 </html>

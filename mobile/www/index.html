@@ -137,6 +137,26 @@
     }
     #scan-overlay .scan-cancel:active { transform:translateX(-50%) scale(.97); }
 
+    /* ══ BANNER DE ATUALIZACAO ══ */
+    #update-banner {
+      position: sticky; top: 0; z-index: 9998;
+      background: #FFD60A; color: #000;
+      padding: 12px 16px; text-align: center;
+      font-size: 14px; font-weight: 600;
+      display: flex; justify-content: center; align-items: center;
+      gap: 12px; flex-wrap: wrap;
+      box-shadow: 0 2px 10px rgba(0,0,0,.15);
+    }
+    #update-banner a {
+      background: #0A5C45; color: #FFD60A;
+      padding: 6px 16px; border-radius: 18px;
+      text-decoration: none; font-weight: 700; font-size: 13px;
+    }
+    #update-banner .close {
+      background: transparent; border: none; color: #000; opacity:.5;
+      font-size: 18px; padding: 0 6px; cursor: pointer;
+    }
+
     /* ══ TAB NAV ══ */
     .tabs {
       background: var(--w); border-bottom: 1px solid var(--bd);
@@ -976,7 +996,7 @@ document.querySelectorAll('.modal-bg').forEach(bg =>
 // Identificador do build do JS — incrementar quando mexer no scanner.
 // Aparece na barra de status pra confirmar visualmente qual versao do
 // codigo esta rodando no APK.
-const SCANNER_BUILD = 'v4-1080p-2026.05.31';
+const SCANNER_BUILD = 'v5-skip-permcheck-2026.05.31';
 
 // Detecta se estamos rodando dentro do APK Capacitor (vs. browser comum)
 function _isCapacitor() {
@@ -1022,50 +1042,29 @@ async function iniciarCameraNativa() {
 
   try {
     // Sinaliza no rodape qual build do JS esta rodando
-    setStatus('proc', `🟢 ${SCANNER_BUILD} — verificando suporte...`);
+    setStatus('proc', `🟢 ${SCANNER_BUILD} — iniciando scanner...`);
 
-    // 1) isSupported informativo
-    let supState = '?';
-    try {
-      const sup = await BS.isSupported();
-      supState = sup?.supported ? 'sim' : 'nao';
-      if (sup && sup.supported === false) {
-        setStatus('err', '❌ Scanner nativo não suportado neste dispositivo');
-        return true;
-      }
-    } catch(e) { supState = 'erro: ' + (e.message||e); }
-
-    // 2) Permissoes — SEMPRE chama requestPermissions (workaround pro cache
-    //    do plugin apos reinstalar o APK: checkPermissions pode retornar
-    //    'denied' enquanto o SO ja concedeu)
-    setStatus('proc', `🔐 Verificando permissão (${SCANNER_BUILD}, suporte: ${supState})...`);
-    let perm = await BS.checkPermissions();
-    const checkResult = perm?.camera || 'undefined';
-
-    if (perm.camera !== 'granted' && perm.camera !== 'limited') {
-      setStatus('proc', `🔐 Solicitando permissão (check: ${checkResult})...`);
-      perm = await BS.requestPermissions();
-    }
-
-    if (perm.camera !== 'granted' && perm.camera !== 'limited') {
-      // Permissao realmente negada
-      document.getElementById('perm-neg').style.display = 'block';
-      setStatus('err', `🚫 Permissão negada (check=${checkResult}, request=${perm?.camera})`);
-      btn.disabled = false;
-      btnTxt.textContent = 'Autorizar câmera e escanear';
-      return true;
-    }
-
-    // 3) startScan: WebView transparente + listener de barcodes
-    setStatus('proc', '📷 Iniciando scanner nativo...');
+    // ATENCAO: nao fazemos mais checkPermissions/requestPermissions explicito.
+    // Bug conhecido do @capacitor-mlkit/barcode-scanning v8 em alguns Samsung:
+    // checkPermissions cacheia o estado anterior e devolve 'denied' mesmo
+    // depois do usuario liberar a camera em Settings -> Apps -> Permissoes.
+    //
+    // O proprio startScan() ja chama requestCameraPermissionIfNotDetermined
+    // internamente. Se a permissao OS estiver granted, ele prossegue.
+    // Se estiver denied, lanca "User denied access to camera." e a gente
+    // captura no catch.
     await _ativarScanNativo(BS);
   } catch (e) {
     console.error('Scanner nativo erro:', e);
     const msg = e?.message || String(e);
-    setStatus('err', `❌ Scanner nativo: ${msg}`);
-    // Se o erro foi explicitamente de permissao, mostra o painel
-    if (/permission|denied|nao autorizado/i.test(msg)) {
+    // O plugin lanca exatamente "User denied access to camera." se a
+    // permissao realmente esta denied no SO. Qualquer outra coisa eh bug.
+    const realDenied = /User denied access to camera/i.test(msg);
+    if (realDenied) {
       document.getElementById('perm-neg').style.display = 'block';
+      setStatus('err', '🚫 Permissão de câmera negada pelo Android');
+    } else {
+      setStatus('err', `❌ ${SCANNER_BUILD}: ${msg}`);
     }
     await _desativarScanNativo(BS);
     btn.disabled = false;
@@ -1753,21 +1752,47 @@ atualizarBadge();
 renderEstabs();
 initColab();
 
-// Preenche entidade do backend via /api/config
+// Preenche entidade do backend via /api/config + checa atualizacao
 fetch(apiUrl('/api/config'))
   .then(r => r.json())
   .then(cfg => {
-    if (!cfg || !cfg.entidade_nome) return;
-    document.getElementById('ent-nome-s').textContent = cfg.entidade_nome;
-    document.getElementById('ent-cnpj-s').textContent = 'CNPJ: ' + (cfg.entidade_cnpj || '—');
-    const hdr = document.getElementById('hdr-entidade');
-    if (hdr) hdr.textContent = cfg.entidade_nome;
+    if (cfg && cfg.entidade_nome) {
+      document.getElementById('ent-nome-s').textContent = cfg.entidade_nome;
+      document.getElementById('ent-cnpj-s').textContent = 'CNPJ: ' + (cfg.entidade_cnpj || '—');
+      const hdr = document.getElementById('hdr-entidade');
+      if (hdr) hdr.textContent = cfg.entidade_nome;
+    }
+    // Sistema de atualizacao: se o backend espera um build diferente do
+    // que o APK ta rodando, mostra banner pro usuario reinstalar.
+    if (cfg && cfg.latest_app_build && cfg.latest_app_build !== SCANNER_BUILD) {
+      mostrarBannerAtualizacao(cfg.latest_app_build);
+    }
   })
   .catch(err => {
     console.warn('Falha ao carregar /api/config:', err);
     document.getElementById('ent-nome-s').textContent = '⚠ Sem conexão com o servidor';
     document.getElementById('ent-cnpj-s').textContent = 'Toque no logo para configurar';
   });
+
+function mostrarBannerAtualizacao(latestBuild) {
+  // Permite o usuario dispensar uma versao especifica (so volta a alertar
+  // quando outra versao mais nova sair).
+  if (localStorage.getItem('upgrade_dismissed') === latestBuild) return;
+  if (document.getElementById('update-banner')) return;
+
+  const b = document.createElement('div');
+  b.id = 'update-banner';
+  b.innerHTML = ''
+    + '<span>🔔 Nova versão disponível</span>'
+    + '<a href="' + apiUrl('/install') + '">Atualizar</a>'
+    + '<button class="close" title="Lembrar depois">×</button>';
+  document.body.insertBefore(b, document.body.firstChild);
+  b.querySelector('.close').addEventListener('click', () => {
+    localStorage.setItem('upgrade_dismissed', latestBuild);
+    b.remove();
+  });
+  console.log('[update] Instalada=' + SCANNER_BUILD + ' / Esperada=' + latestBuild);
+}
 
 // Toque longo no card de entidade abre prompt de configuracao do backend
 (function () {

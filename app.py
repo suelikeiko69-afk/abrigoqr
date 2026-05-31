@@ -69,6 +69,13 @@ CORS_ORIGINS   = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") i
 INSTALL_REPO   = os.getenv("INSTALL_REPO", "suelikeiko69-afk/abrigoqr")
 INSTALL_TAG    = os.getenv("INSTALL_TAG",  "latest")
 
+# Identificador do build esperado do APK. Quando o JS no APK detectar que
+# seu SCANNER_BUILD nao bate com este valor, ele mostra um banner amarelo
+# "Nova versao disponivel - Atualizar" -> direciona pro /install/apk.
+# IMPORTANTE: atualizar este valor sempre que SCANNER_BUILD mudar em
+# mobile/www/index.html. Os dois precisam ficar sincronizados.
+LATEST_APP_BUILD = os.getenv("LATEST_APP_BUILD", "v5-skip-permcheck-2026.05.31")
+
 # Render entrega "postgres://" mas SQLAlchemy 2.x exige "postgresql://"
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
@@ -231,11 +238,13 @@ async def home():
 async def api_config():
     """Configuração pública usada pelo app mobile no startup."""
     return {
-        "entidade_nome":  ENTIDADE_NOME,
-        "entidade_cnpj":  fmt_cnpj(ENTIDADE_CNPJ),
-        "entidade_label": ENTIDADE_LABEL,
-        "versao":         "4.0.0",
-        "rpa_disponivel": RPA_DISPONIVEL,
+        "entidade_nome":    ENTIDADE_NOME,
+        "entidade_cnpj":    fmt_cnpj(ENTIDADE_CNPJ),
+        "entidade_label":   ENTIDADE_LABEL,
+        "versao":           "4.0.0",
+        "rpa_disponivel":   RPA_DISPONIVEL,
+        "latest_app_build": LATEST_APP_BUILD,
+        "install_url":      f"/install",
     }
 
 
